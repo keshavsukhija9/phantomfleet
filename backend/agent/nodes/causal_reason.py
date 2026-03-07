@@ -3,21 +3,41 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import json
-import anthropic
 from dotenv import load_dotenv
 from agent.state import AgentState
 
 # Load environment variables
 load_dotenv()
 
-# Check for valid API key
-api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-if not api_key or api_key == "your_key_here":
-    print("WARNING: ANTHROPIC_API_KEY not set or using placeholder. Claude API calls will fail.")
-    print("Please set a valid API key in the .env file.")
-    CLIENT = None
+# Choose LLM provider: "ollama" or "claude"
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "ollama").lower()
+
+if LLM_PROVIDER == "ollama":
+    try:
+        import requests
+        # Test Ollama connection
+        response = requests.get("http://localhost:11434/api/tags", timeout=2)
+        if response.status_code == 200:
+            print("Using Ollama for causal reasoning")
+            CLIENT = "ollama"
+            OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
+        else:
+            print("WARNING: Ollama not responding. Falling back to mock responses.")
+            CLIENT = None
+    except Exception as e:
+        print(f"WARNING: Could not connect to Ollama: {e}")
+        print("Make sure Ollama is running: ollama serve")
+        CLIENT = None
 else:
-    CLIENT = anthropic.Anthropic(api_key=api_key)
+    # Claude API
+    import anthropic
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key or api_key == "your_key_here":
+        print("WARNING: ANTHROPIC_API_KEY not set or using placeholder.")
+        CLIENT = None
+    else:
+        CLIENT = anthropic.Anthropic(api_key=api_key)
+        print("Using Claude for causal reasoning")
 
 SYSTEM = """You are Phantom Fleet's Causal Reasoning Engine for logistics.
 Given shipment features and SHAP values, produce a 2-sentence causal

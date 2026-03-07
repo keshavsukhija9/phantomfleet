@@ -1,10 +1,10 @@
 # Phantom Fleet v3 - Agentic AI for Logistics
 
-NMIMS Hackathon | 4-Hour Build Challenge
+NMIMS Hackathon | Complete ORDAL Loop Implementation
 
-## Overview
+## 🎯 What This Is
 
-Phantom Fleet is an autonomous logistics intelligence system that implements a complete **Observe → Reason → Decide → Act → Learn (ORDAL)** agentic loop. The system:
+An autonomous logistics intelligence system that implements a complete **Observe → Reason → Decide → Act → Learn (ORDAL)** agentic loop. The system:
 
 1. **Observes** - Ingests simulated shipment telemetry every tick
 2. **Reasons** - Uses XGBoost + SHAP for risk prediction, Claude AI for causal analysis
@@ -12,57 +12,31 @@ Phantom Fleet is an autonomous logistics intelligence system that implements a c
 4. **Acts** - Executes interventions with 4-layer guardrails or escalates to humans
 5. **Learns** - Stores outcomes in vector memory to improve future decisions
 
-## Architecture
+## 🚀 Quick Start (5 Minutes)
 
-### Backend (Python + FastAPI)
-- **LangGraph Agent**: 6-node state machine
-- **ML Model**: XGBoost with GPU acceleration (RTX 3050)
-- **AI Reasoning**: Anthropic Claude API
-- **Memory**: ChromaDB with sentence-transformers embeddings
-- **Simulation**: Synthetic disruption engine with scheduled events
-
-### Hardware Optimization
-- **RTX 3050**: XGBoost training/inference, SHAP explanations, embeddings
-- **i7 13th Gen**: Parallel processing, async operations, graph planning
-
-## Quick Start
-
-### Prerequisites
-- Python 3.10+
-- CUDA toolkit (for GPU acceleration)
-- Anthropic API key
-
-### Installation
-
-**Windows:**
 ```bash
-quick_start.bat
-```
+# 1. Install dependencies
+pip install -r backend/requirements.txt
 
-**Linux/Mac:**
-```bash
-chmod +x quick_start.sh
-./quick_start.sh
-```
+# 2. Set your API key in .env
+ANTHROPIC_API_KEY=sk-ant-your-key-here
 
-**Manual:**
-```bash
-# 1. Set up environment
-echo "ANTHROPIC_API_KEY=your_key_here" > .env
+# 3. Train the model
+cd backend && python models/train.py
 
-# 2. Install dependencies
-cd backend
-pip install -r requirements.txt
-
-# 3. Train model (one-time, ~3 minutes)
-python models/train.py
-
-# 4. Test system
+# 4. Test the system
 python test_system.py
 
-# 5. Start server
+# 5. Start backend (keep running)
 uvicorn main:app --reload --port 8000
+
+# 6. Start frontend (new terminal)
+streamlit run app.py
 ```
+
+Open browser to `http://localhost:8501` 🎉
+
+**See [QUICKSTART.md](QUICKSTART.md) for detailed instructions.**
 
 ## API Endpoints
 
