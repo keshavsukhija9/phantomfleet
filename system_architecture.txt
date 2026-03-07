@@ -1,0 +1,863 @@
+PHANTOM FLEET v3 — DETAILED SYSTEM ARCHITECTURE
+NMIMS Hackathon | Agentic AI for Logistics & Supply Chain
+================================================================================
+Document Type : System Architecture Reference
+Based On      : Phantom Fleet v3 Updated PRD (React + FastAPI edition)
+Author        : Keshav (Team Lead)
+================================================================================
+
+
+════════════════════════════════════════════════════════════════════════════════
+1. HIGH-LEVEL SYSTEM OVERVIEW
+════════════════════════════════════════════════════════════════════════════════
+
+Phantom Fleet is a 3-tier autonomous logistics intelligence system built
+around a full Observe → Reason → Decide → Act → Learn (ORDAL) agentic loop.
+
+The system ingests simulated shipment telemetry every tick (5 real seconds =
+30 simulated minutes), runs ML-based risk prediction, calls Claude AI for
+causal reasoning, plans reroute interventions, executes them with guardrails,
+and stores outcomes in vector memory to improve future decisions.
+
+TIER OVERVIEW
+─────────────────────────────────────────────────────────────────────────────
+
+  TIER 1 — PRESENTATION LAYER
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │  React 18 + TypeScript + Vite + Tailwind CSS                          │
+  │  Runs in browser on port 5173                                         │
+  │  Components: Header, NetworkMap, RiskFeed, ReasoningPanel,            │
+  │              EscalationCard, LearningPanel                            │
+  │  State: Zustand global store                                          │
+  │  Transport: REST (fetch) + Server-Sent Events (SSE)                   │
+  └──────────────────────────────────┬─────────────────────────────────────┘
+                                     │ HTTP/SSE on port 8000 via Vite proxy
+  TIER 2 — APPLICATION LAYER
+  ┌──────────────────────────────────▼─────────────────────────────────────┐
+  │  FastAPI (Python) — Uvicorn ASGI server on port 8000                  │
+  │  Routes: POST /tick · GET /state · POST /approve/{id} · GET /stream   │
+  │  Owns: shared AgentState singleton                                    │
+  │  Middleware: CORS (all origins for hackathon)                         │
+  └──────────────────────────────────┬─────────────────────────────────────┘
+                                     │ direct Python calls
+  TIER 3 — INTELLIGENCE LAYER
+  ┌──────────────────────────────────▼─────────────────────────────────────┐
+  │  LangGraph Agent (6-node directed graph)                              │
+  │  ML: XGBoost classifier + SHAP explainer (loaded from model.pkl)      │
+  │  AI: Anthropic Claude API (claude-sonnet-4-20250514)                  │
+  │  Memory: ChromaDB vector store (in-memory, ephemeral per session)     │
+  │  Simulation: SimulationEngine (synthetic shipment generator)          │
+  └────────────────────────────────────────────────────────────────────────┘
+
+
+════════════════════════════════════════════════════════════════════════════════
+2. COMPONENT INVENTORY
+════════════════════════════════════════════════════════════════════════════════
+
+  #    Component                  Language / Library          Layer
+  ──   ─────────────────────────  ──────────────────────────  ──────────────
+  1    React App (Vite)           TypeScript / React 18       Frontend
+  2    Zustand Store              TypeScript / Zustand 4      Frontend
+  3    API Client (api.ts)        TypeScript / Fetch + SSE    Frontend
+  4    NetworkMap                 React-Leaflet + CartoDB     Frontend
+  5    RiskFeed                   React + Tailwind            Frontend
+  6    ReasoningPanel             React + Tailwind            Frontend
+  7    EscalationCard             React + Tailwind            Frontend
+  8    LearningPanel              React + Recharts            Frontend
+  9    FastAPI Server             Python / FastAPI + Uvicorn  Backend
+  10   AgentState                 Python dataclass            Backend
+  11   LangGraph Graph            Python / LangGraph          Agent
+  12   ObserveNode                Python                      Agent
+  13   RiskAssessNode             Python / XGBoost + SHAP     Agent
+  14   CausalReasonNode           Python / Anthropic SDK      Agent
+  15   PlanNode                   Python                      Agent
+  16   ActNode                    Python                      Agent
+  17   LearnNode                  Python / ChromaDB           Agent
+  18   SimulationEngine           Python / NumPy              Data
+  19   XGBoost Model (model.pkl)  Python / XGBoost            ML
+  20   SHAP Explainer             Python / SHAP               ML
+  21   ChromaDB Collection        Python / ChromaDB           Memory
+  22   Anthropic Claude API       External / HTTPS            AI
+
+
+════════════════════════════════════════════════════════════════════════════════
+3. DIRECTORY STRUCTURE
+════════════════════════════════════════════════════════════════════════════════
+
+  phantom_fleet/
+  │
+  ├── backend/                         ← All Python code
+  │   ├── main.py                      ← FastAPI app, routes, SSE generator
+  │   │
+  │   ├── agent/
+  │   │   ├── graph.py                 ← LangGraph StateGraph definition
+  │   │   ├── state.py                 ← AgentState, Shipment, Intervention
+  │   │   └── nodes/
+  │   │       ├── observe.py           ← Node 1: ingest telemetry
+  │   │       ├── risk_assess.py       ← Node 2: XGBoost + SHAP scoring
+  │   │       ├── causal_reason.py     ← Node 3: Claude API call
+  │   │       ├── capacity.py          ← Capacity pool definitions
+  │   │       ├── plan.py              ← Node 4: score + select interventions
+  │   │       ├── act.py               ← Node 5: guardrails + execution
+  │   │       └── learn.py             ← Node 6: Chroma store + boost update
+  │   │
+  │   ├── models/
+  │   │   ├── train.py                 ← Offline training script (run once)
+  │   │   ├── predict.py               ← predict(shipment) → (prob, shap_top3)
+  │   │   └── model.pkl                ← Pre-trained XGBoost (committed)
+  │   │
+  │   ├── simulation/
+  │   │   └── generator.py             ← SimulationEngine.step() → 50 ships
+  │   │
+  │   ├── memory/
+  │   │   └── episodes.py              ← store_episode() + get_boost()
+  │   │
+  │   └── requirements.txt
+  │
+  ├── frontend/                        ← All TypeScript / React code
+  │   ├── index.html
+  │   ├── package.json
+  │   ├── vite.config.ts               ← Proxy /api → localhost:8000
+  │   ├── tailwind.config.js
+  │   └── src/
+  │       ├── main.tsx                 ← React DOM root
+  │       ├── App.tsx                  ← Layout grid + SSE subscription
+  │       ├── api.ts                   ← fetchState, runTick, sendDecision, SSE
+  │       ├── types.ts                 ← TypeScript interfaces for AgentState
+  │       ├── store.ts                 ← Zustand store (state + actions)
+  │       └── components/
+  │           ├── Header.tsx
+  │           ├── NetworkMap.tsx
+  │           ├── RiskFeed.tsx
+  │           ├── ReasoningPanel.tsx
+  │           ├── EscalationCard.tsx
+  │           └── LearningPanel.tsx
+  │
+  └── .env                             ← ANTHROPIC_API_KEY=...
+
+
+════════════════════════════════════════════════════════════════════════════════
+4. DATA FLOW DIAGRAM — ONE COMPLETE TICK
+════════════════════════════════════════════════════════════════════════════════
+
+  USER clicks "NEXT TICK" or SSE fires automatically every 5s
+       │
+       ▼
+  [React: api.ts]
+  POST /api/tick ──────────────────────────────────────────────────►
+                                                          [FastAPI: main.py]
+                                                          calls APP.invoke(state)
+                                                                  │
+                                                          ┌───────▼────────────────┐
+                                                          │   LANGGRAPH GRAPH      │
+                                                          │                        │
+                                                          │  ┌─────────────────┐   │
+                                                          │  │  ObserveNode    │   │
+                                                          │  │ SimulationEngine│   │
+                                                          │  │ .step() → 50   │   │
+                                                          │  │  shipment dicts │   │
+                                                          │  └────────┬────────┘   │
+                                                          │           ▼            │
+                                                          │  ┌─────────────────┐   │
+                                                          │  │ RiskAssessNode  │   │
+                                                          │  │ XGBoost.predict │   │
+                                                          │  │ SHAP.values()   │   │
+                                                          │  │ → failure_prob  │   │
+                                                          │  │ → shap_top3     │   │
+                                                          │  └────────┬────────┘   │
+                                                          │           │            │
+                                                          │   any at-risk?         │
+                                                          │    YES ──►▼   NO──►END │
+                                                          │  ┌─────────────────┐   │
+                                                          │  │CausalReasonNode │   │
+                                                          │  │ Claude API call │   │
+                                                          │  │ (max 3 ships)   │   │
+                                                          │  │ → hypothesis    │   │
+                                                          │  │ → primary_cause │   │
+                                                          │  │ → confidence    │   │
+                                                          │  └────────┬────────┘   │
+                                                          │           ▼            │
+                                                          │  ┌─────────────────┐   │
+                                                          │  │   PlanNode      │   │
+                                                          │  │ score CAPACITY_ │   │
+                                                          │  │ POOL entries    │   │
+                                                          │  │ apply calibra-  │   │
+                                                          │  │ tion_boost      │   │
+                                                          │  │ → Intervention  │   │
+                                                          │  └────────┬────────┘   │
+                                                          │           ▼            │
+                                                          │  ┌─────────────────┐   │
+                                                          │  │   ActNode       │   │
+                                                          │  │ 4 guardrails    │   │
+                                                          │  │ AUTO vs HITL    │   │
+                                                          │  └────────┬────────┘   │
+                                                          │           ▼            │
+                                                          │  ┌─────────────────┐   │
+                                                          │  │   LearnNode     │   │
+                                                          │  │ Chroma.store()  │   │
+                                                          │  │ get_boost()     │   │
+                                                          │  │ update calibra- │   │
+                                                          │  │ tion_boost map  │   │
+                                                          │  └────────┬────────┘   │
+                                                          └───────────┼────────────┘
+                                                                      │
+                                                         returns updated AgentState
+                                                                      │
+  ◄─────────────────────────────────────────────── JSON response ─────┘
+  [React: store.ts]
+  setState(newAgentState)
+       │
+       ▼
+  All components re-render reactively from Zustand store:
+    • Header     — updates Tick, At Risk, Rescued, Memory counts
+    • NetworkMap — redraws dots + rescue lines
+    • RiskFeed   — re-sorts risk list
+    • ReasoningPanel — shows new Claude hypothesis
+    • EscalationCard — renders if pending_approvals > 0
+    • LearningPanel  — updates calibration bars
+
+
+════════════════════════════════════════════════════════════════════════════════
+5. AGENT GRAPH — NODE-BY-NODE SPECIFICATION
+════════════════════════════════════════════════════════════════════════════════
+
+  Entry Point: ObserveNode
+  Exit Point:  LearnNode → END (or RiskAssessNode → END if no at-risk ships)
+
+  ┌─────────────┐     ┌─────────────┐     ┌─────────────────┐
+  │  OBSERVE    │────►│ RISK_ASSESS │────►│  CAUSAL_REASON  │
+  │             │     │             │     │  (conditional)  │
+  └─────────────┘     └─────────────┘     └────────┬────────┘
+                             │                      │
+                      no at-risk                    ▼
+                             │             ┌─────────────────┐
+                             ▼             │      PLAN       │
+                            END            └────────┬────────┘
+                                                    │
+                                                    ▼
+                                           ┌─────────────────┐
+                                           │      ACT        │
+                                           │  (interrupt_    │
+                                           │   before hook)  │
+                                           └────────┬────────┘
+                                                    │
+                                                    ▼
+                                           ┌─────────────────┐
+                                           │      LEARN      │
+                                           └────────┬────────┘
+                                                    │
+                                                    ▼
+                                                   END
+
+  NODE 1 — ObserveNode (observe.py)
+  ─────────────────────────────────
+  Input  : current AgentState
+  Action : calls SimulationEngine.step() → list of 50 raw shipment dicts
+           hydrates state.shipments with Shipment dataclass instances
+           increments state.tick
+  Output : updated AgentState (tick+1, 50 fresh shipments)
+  Side Effects: none
+
+  NODE 2 — RiskAssessNode (risk_assess.py)
+  ─────────────────────────────────────────
+  Input  : state.shipments (50 Shipment objects)
+  Action : for each shipment, calls predict(vars(ship)) from models/predict.py
+           predict() returns (failure_prob: float, shap_top3: dict)
+           sets ship.failure_prob, ship.status = "AT_RISK" if prob >= 0.75
+           populates state.risk_map and state.shap_map
+           populates state.active_at_risk list (ships with prob >= threshold
+           that don't already have an intervention)
+  Routing: if active_at_risk is empty → END (skip remaining nodes)
+           if active_at_risk non-empty → proceed to CausalReasonNode
+  Output : state with risk_map, shap_map, active_at_risk populated
+
+  NODE 3 — CausalReasonNode (causal_reason.py)
+  ─────────────────────────────────────────────
+  Input  : state.active_at_risk[:3], state.shap_map, state.shipments
+  Action : for each at-risk shipment (capped at 3 to save API budget):
+             builds a structured prompt with feature values + SHAP weights
+             calls Anthropic Claude API (claude-sonnet-4-20250514)
+             max_tokens = 200 per call
+             parses JSON response: {hypothesis, primary_cause, confidence}
+             stores result in state.causal_map[sid]
+  Output : state.causal_map populated (up to 3 entries per tick)
+  External Dependency: Anthropic Claude API (HTTPS, ANTHROPIC_API_KEY)
+  Error Handling: on JSON parse failure, stores raw text + UNKNOWN cause
+
+  NODE 4 — PlanNode (plan.py)
+  ────────────────────────────
+  Input  : state.active_at_risk, state.causal_map, state.calibration_boost,
+           CAPACITY_POOL (10 hard-coded capacity opportunities)
+  Action : for each at-risk shipment:
+             fetches calibration_boost multiplier from memory (default 1.0)
+             scores each capacity entry:
+               score = (reliability × 0.40)
+                     + (min(eta_gain_hrs/8, 1) × 0.35)
+                     - (min(cost_delta/10, 1) × 0.25)
+                     × memory_boost
+             selects highest-scoring capacity entry
+             creates Intervention dataclass (id, path, eta_gain, cost_delta,
+               revival_prob, execution="PENDING", causal_reason)
+             stores in state.interventions, links to ship.intervention_id
+  Output : state.interventions populated (up to 3 new Intervention objects)
+
+  NODE 5 — ActNode (act.py)
+  ──────────────────────────
+  Input  : state.interventions (PENDING ones only)
+  Action : for each PENDING intervention, checks 4 guardrails:
+             G1: intervention.score >= 0.70
+             G2: intervention.cost_delta_pct <= 5.0
+             G3: shipment.priority != "CRITICAL"
+             G4: intervention.revival_prob >= 0.65
+           ALL 4 pass → execution = "AUTO", ship.status = "RESCUED"
+           ANY fail   → execution = "PENDING_HUMAN"
+                        intervention id added to state.pending_approvals
+  Note   : LangGraph's interrupt_before=["act"] allows the human approval
+           API endpoint to intercept before this node runs (HITL hook)
+  Output : updated intervention execution statuses + pending_approvals list
+
+  NODE 6 — LearnNode (learn.py)
+  ──────────────────────────────
+  Input  : state.interventions (non-PENDING outcomes only)
+  Action : for each resolved intervention (outcome != "PENDING"):
+             calls memory.episodes.store_episode(episode_dict) → Chroma
+             increments state.episode_count
+             calls memory.episodes.get_boost(carrier, outcome)
+               → queries Chroma for past 5 interventions with this carrier
+               → computes success_rate = successes / total
+               → returns boost = 0.8 + (success_rate × 0.4)  [range 0.8–1.2]
+             stores boost in state.calibration_boost[shipment_id]
+  Output : state.episode_count incremented, state.calibration_boost updated
+  Side Effects: writes to ChromaDB collection "interventions"
+
+
+════════════════════════════════════════════════════════════════════════════════
+6. DATA MODELS
+════════════════════════════════════════════════════════════════════════════════
+
+  SHIPMENT
+  ──────────────────────────────────────────────────────────────────────────
+  Field                  Type     Description
+  ─────────────────────  ───────  ─────────────────────────────────────────
+  id                     str      "S000" – "S049"
+  origin                 str      e.g. "O1" (simplified for demo)
+  destination            str      e.g. "D1"
+  carrier                str      C1–C6
+  eta_drift_pct          float    % delay vs schedule (0–80)
+  carrier_reliability    float    0–1, rolling reliability score
+  warehouse_pressure     float    0–1, downstream congestion index
+  weather_risk           float    0–1, regional weather severity
+  priority               str      CRITICAL / HIGH / STANDARD
+  status                 str      HEALTHY / AT_RISK / RESCUED / FAILED
+  failure_prob           float    XGBoost output, 0–1
+  intervention_id        str|null FK to Intervention.id
+
+  INTERVENTION
+  ──────────────────────────────────────────────────────────────────────────
+  Field                  Type     Description
+  ─────────────────────  ───────  ─────────────────────────────────────────
+  id                     str      8-char UUID prefix
+  shipment_id            str      FK to Shipment.id
+  path                   str      Human-readable route e.g. "W3→D2"
+  predicted_eta_gain     float    Hours saved by rerouting
+  cost_delta_pct         float    % cost increase vs original route
+  revival_prob           float    Probability intervention succeeds
+  execution              str      PENDING / AUTO / PENDING_HUMAN /
+                                  HUMAN_APPROVED / REJECTED
+  outcome                str      PENDING / SUCCESS / FAILURE
+  causal_reason          str      Claude hypothesis (copied for HITL display)
+  score                  float    Composite score from PlanNode
+
+  AGENT STATE (singleton, lives in FastAPI process)
+  ──────────────────────────────────────────────────────────────────────────
+  Field                  Type                     Description
+  ─────────────────────  ───────────────────────  ────────────────────────
+  shipments              Dict[str, Shipment]       id → Shipment
+  risk_map               Dict[str, float]          id → failure_prob
+  interventions          Dict[str, Intervention]   id → Intervention
+  pending_approvals      List[str]                 intervention ids awaiting HITL
+  tick                   int                       current simulation tick
+  capacity_opportunities List[dict]                unused (future use)
+  episode_count          int                       total Chroma entries
+  calibration_boost      Dict[str, float]          shipment_id → multiplier
+  active_at_risk         List[str]                 shipment ids flagged this tick
+  causal_map             Dict[str, CausalResult]   sid → Claude JSON output
+  shap_map               Dict[str, dict]           sid → top-3 SHAP features
+
+  CAPACITY POOL ENTRY (static, 10 entries in plan.py)
+  ──────────────────────────────────────────────────────────────────────────
+  Field                  Type     Description
+  ─────────────────────  ───────  ─────────────────────────────────────────
+  id                     str      CAP1–CAP10
+  type                   str      truck / flight / van
+  carrier                str      C2, C3, C5, AIR1, AIR2
+  route                  str      e.g. "W1→D1"
+  available_kg           int      payload capacity
+  reliability            float    carrier reliability on this route
+  eta_gain_hrs           float    hours saved vs current route
+  cost_delta             float    % cost increase
+
+  CHROMA EPISODE RECORD (stored in vector DB)
+  ──────────────────────────────────────────────────────────────────────────
+  Field       Stored as      Description
+  ──────────  ─────────────  ─────────────────────────────────────────────
+  id          Chroma id      intervention id (unique)
+  document    JSON string    full episode dict
+  metadata    {outcome,      outcome for filtering, path for reference,
+               path, score}  score for analysis
+
+
+════════════════════════════════════════════════════════════════════════════════
+7. API CONTRACT — FASTAPI ENDPOINTS
+════════════════════════════════════════════════════════════════════════════════
+
+  GET  /state
+  ─────────────────────────────────────────────────────────────────────────
+  Description : Returns current AgentState snapshot without advancing tick.
+  Request     : none
+  Response    : 200 JSON — serialized AgentState (all fields)
+  Used by     : App.tsx on mount (initial load)
+
+  POST /tick
+  ─────────────────────────────────────────────────────────────────────────
+  Description : Runs one full LangGraph agent cycle. Advances tick by 1.
+  Request     : none
+  Response    : 200 JSON — updated AgentState after full O→R→D→A→L cycle
+  Used by     : Header.tsx "NEXT TICK" button (manual mode)
+  Side Effects: SimulationEngine.step() called, Claude API called if
+                at-risk ships exist, Chroma updated if resolved episodes exist
+
+  POST /approve/{intervention_id}
+  ─────────────────────────────────────────────────────────────────────────
+  Description : Human approves or rejects a PENDING_HUMAN intervention.
+  Request     : { "decision": "approve" | "reject" }
+  Response    : 200 JSON — updated AgentState
+  approve →  inv.execution = "HUMAN_APPROVED", ship.status = "RESCUED"
+  reject  →  inv.execution = "REJECTED"
+  Used by     : EscalationCard.tsx approve/reject buttons
+
+  GET  /stream
+  ─────────────────────────────────────────────────────────────────────────
+  Description : Server-Sent Events stream. Advances tick every 5 seconds
+                and pushes new AgentState as SSE "data:" event.
+  Response    : text/event-stream  (keep-alive)
+  Event format: data: {JSON AgentState}\n\n
+  Used by     : App.tsx when autoRun toggle is ON
+  Note        : SSE connection is closed by client when autoRun turns OFF
+
+
+════════════════════════════════════════════════════════════════════════════════
+8. FRONTEND COMPONENT ARCHITECTURE
+════════════════════════════════════════════════════════════════════════════════
+
+  STATE MANAGEMENT PATTERN
+  ─────────────────────────────────────────────────────────────────────────
+  • Single Zustand store (store.ts) holds all UI + agent state
+  • All API calls are dispatched through store actions (tick, decide, etc.)
+  • Components only READ from store via useStore() selector hooks
+  • No prop drilling — every component is independently connected to store
+  • Re-renders are selective: each component only re-renders when its
+    selected slice of state changes
+
+  COMPONENT TREE
+  ─────────────────────────────────────────────────────────────────────────
+
+  App.tsx
+  ├── Header.tsx
+  │     reads : state.tick, shipments (for counts), loading, autoRun
+  │     calls : store.tick(), store.setAutoRun()
+  │     shows : Tick / At Risk / Rescued / Memory KPIs
+  │             "NEXT TICK" button, Auto toggle
+  │
+  ├── NetworkMap.tsx                      (left column, ~60% width)
+  │     reads : state.shipments, state.interventions
+  │     shows : Leaflet map with CartoDB dark tiles
+  │             City nodes (W1–W3, D1–D2) as cyan circles
+  │             At-risk shipments as red/orange dots (jittered around W1)
+  │             Active rescue paths as dashed green Polylines
+  │             Tooltips on hover (shipment id, risk %, priority)
+  │
+  ├── RiskFeed.tsx                        (right column top)
+  │     reads : state.shipments (sorted by failure_prob DESC)
+  │     shows : top 8 at-risk shipments
+  │             per row: priority badge, id, ASCII progress bar, % risk
+  │             color-coded by priority (red/orange/yellow)
+  │
+  ├── ReasoningPanel.tsx                  (right column bottom)
+  │     reads : state.active_at_risk[0], state.causal_map, state.shap_map,
+  │             state.shipments
+  │     shows : top at-risk shipment's Claude hypothesis
+  │             primary cause badge (color-coded by cause type)
+  │             confidence %
+  │             hypothesis text (2 sentences from Claude)
+  │             top 3 SHAP feature contributions (+ = risk driver)
+  │
+  ├── EscalationCard.tsx × N              (full-width strip, conditional)
+  │     reads : state.interventions[id], state.shipments[ship_id]
+  │     calls : store.decide(id, "approve" | "reject")
+  │     shows : CRITICAL/HIGH badge, shipment id
+  │             route / ETA gain / cost delta / revival prob grid
+  │             Claude causal reason quote
+  │             APPROVE (green) and REJECT (gray) buttons
+  │     condition: only rendered when state.pending_approvals.length > 0
+  │
+  └── LearningPanel.tsx                  (collapsible footer strip)
+        reads : state.episode_count, state.calibration_boost
+        shows : episode count pill
+                Recharts BarChart of calibration_boost per shipment
+                reference line at y=1.0 (neutral baseline)
+                expandable/collapsible via local toggle state
+
+  RENDERING STRATEGY
+  ─────────────────────────────────────────────────────────────────────────
+  • Layout: CSS Grid (App.tsx)
+      grid-template-columns: 2fr 1fr   (map : right column)
+  • Dark theme throughout: bg-gray-950 base, gray-900 panels
+  • Font: Tailwind font-mono (monospaced, gives data-terminal feel)
+  • Color language:
+      cyan-400   = system / neutral information
+      red-400    = critical risk / failure
+      orange-400 = high risk / warnings
+      emerald-400 = success / rescued
+      amber-400   = escalation / human action needed
+
+
+════════════════════════════════════════════════════════════════════════════════
+9. ML SUBSYSTEM — XGBOOST + SHAP
+════════════════════════════════════════════════════════════════════════════════
+
+  TRAINING (run ONCE offline, commit model.pkl to repo)
+  ─────────────────────────────────────────────────────────────────────────
+  Script     : backend/models/train.py
+  Data       : 5000 synthetic samples from SimulationEngine (100 ticks × 50)
+  Features   : 8 numeric features (see below)
+  Label      : binary failure (heuristic rule on feature thresholds)
+  Algorithm  : XGBClassifier(n_estimators=100, max_depth=4, lr=0.1)
+  Evaluation : ROC-AUC > 0.88 on 20% holdout
+  Output     : models/model.pkl (pickle)
+
+  THE 8 FEATURES
+  ─────────────────────────────────────────────────────────────────────────
+  Feature                  Range     Description
+  ───────────────────────  ────────  ────────────────────────────────────
+  eta_drift_pct            0 – 80    % delay vs scheduled ETA
+  carrier_reliability      0 – 1     rolling 30-day carrier success rate
+  warehouse_pressure       0 – 1     downstream congestion index
+  weather_risk             0 – 1     regional weather severity score
+  handoff_margin_hours     0.2 – 6   buffer hours before next handoff
+  downstream_critical      0 – 3     # critical orders dependent on this
+  priority_score           0.33/0.67/1.0  STANDARD/HIGH/CRITICAL encoding
+  route_reliability        ~Beta(7,2) average edge reliability on route
+
+  FAILURE LABEL RULE (training only)
+  ─────────────────────────────────────────────────────────────────────────
+  failure = 1 IF:
+    (eta_drift_pct > 30 AND carrier_reliability < 0.5)
+    OR warehouse_pressure > 0.80
+    OR handoff_margin_hours < 1.0
+
+  INFERENCE (runs every tick, for all 50 shipments)
+  ─────────────────────────────────────────────────────────────────────────
+  Function   : predict(shipment_dict) → (failure_prob: float, shap_top3: dict)
+  SHAP       : TreeExplainer initialized once at module load (fast)
+  Output     : failure_prob in [0,1], top 3 features by |SHAP value|
+  Threshold  : 0.75 → shipment flagged as AT_RISK in RiskAssessNode
+
+
+════════════════════════════════════════════════════════════════════════════════
+10. AI SUBSYSTEM — CLAUDE API
+════════════════════════════════════════════════════════════════════════════════
+
+  MODEL          : claude-sonnet-4-20250514
+  MAX TOKENS     : 200 per call
+  CALLS PER TICK : up to 3 (capped in CausalReasonNode)
+  TEMPERATURE    : default (not set, model default ~1.0)
+  AUTH           : ANTHROPIC_API_KEY from .env
+
+  SYSTEM PROMPT ROLE
+  ─────────────────────────────────────────────────────────────────────────
+  "You are Phantom Fleet's Causal Reasoning Engine for logistics.
+   Given shipment features and SHAP values, produce a 2-sentence causal
+   hypothesis explaining WHY this shipment is at risk and what will happen
+   if no action is taken. Be specific: cite the exact feature values.
+   Respond only with valid JSON: {"hypothesis": "...", "primary_cause": "...",
+   "confidence": 0.XX}
+   primary_cause must be one of: CARRIER_DEGRADATION, WAREHOUSE_CONGESTION,
+   WEATHER, DOWNSTREAM_PRESSURE, COMPOUND."
+
+  USER PROMPT STRUCTURE (per shipment)
+  ─────────────────────────────────────────────────────────────────────────
+  Shipment {id} | Priority: {priority}
+  Failure probability: {failure_prob}%
+
+  Feature values:
+    eta_drift_pct       = {value}%
+    carrier_reliability = {value}
+    warehouse_pressure  = {value}
+    weather_risk        = {value}
+
+  Top SHAP drivers (what the model reacted to most):
+    {shap_top3 dict}
+
+  Produce your causal hypothesis as JSON.
+
+  RESPONSE PARSING
+  ─────────────────────────────────────────────────────────────────────────
+  • Happy path: json.loads(resp.content[0].text)
+  • Error path: raw text stored as hypothesis, primary_cause = "UNKNOWN",
+                confidence = 0.5
+
+  OUTPUT USAGE
+  ─────────────────────────────────────────────────────────────────────────
+  • hypothesis    → displayed in ReasoningPanel + EscalationCard
+  • primary_cause → color-coded badge in ReasoningPanel
+  • confidence    → shown as % in ReasoningPanel header
+
+
+════════════════════════════════════════════════════════════════════════════════
+11. MEMORY SUBSYSTEM — CHROMADB
+════════════════════════════════════════════════════════════════════════════════
+
+  STORE      : chromadb.Client() (in-memory, per-session, no disk persistence)
+  COLLECTION : "interventions"
+
+  WRITE OPERATION — store_episode(ep: dict)
+  ─────────────────────────────────────────────────────────────────────────
+  Triggered by : LearnNode for every resolved intervention (outcome != PENDING)
+  Stored data  : id (Chroma document id)
+                 document: JSON string of full episode
+                 metadata: {outcome, path, score}
+
+  READ OPERATION — get_boost(carrier: str, last_outcome: str) → float
+  ─────────────────────────────────────────────────────────────────────────
+  Query        : query_texts=["carrier {carrier}"], n_results=5
+  Filter       : where={"outcome": {"$ne": "PENDING"}}
+  Computation  : success_rate = count("SUCCESS") / len(results)
+                 boost = 0.8 + (success_rate × 0.4)
+  Range        : 0.80 (all past failures) → 1.20 (all past successes)
+  Default      : 1.0 if no past episodes found
+
+  HOW LEARNING CHANGES BEHAVIOR
+  ─────────────────────────────────────────────────────────────────────────
+  calibration_boost[shipment_id] is applied as a multiplier in PlanNode's
+  score_path() function. This means:
+  • Routes through historically reliable carriers score higher → selected more
+  • Routes through historically failed carriers score lower → avoided
+  • The LearningPanel bar chart visualizes this multiplier per shipment
+  • Judges can observe the multiplier changing between ticks
+
+
+════════════════════════════════════════════════════════════════════════════════
+12. SIMULATION ENGINE
+════════════════════════════════════════════════════════════════════════════════
+
+  Class         : SimulationEngine (simulation/generator.py)
+  Seed          : 42 (reproducible demo)
+  Tick rate     : 1 call per agent cycle (every 5 real seconds in auto mode)
+
+  STATE VARIABLES
+  ─────────────────────────────────────────────────────────────────────────
+  carrier_reliability : Dict[str, float]  — per carrier, starts at 0.85
+  warehouse_pressure  : Dict[str, float]  — per warehouse, starts at 0.35
+  weather_risk        : float             — global, starts at 0.10
+
+  DISRUPTION SCHEDULE (hard-coded for demo reliability)
+  ─────────────────────────────────────────────────────────────────────────
+  Tick  3  : Carrier C4 degraded → reliability 0.85 → 0.25
+  Tick  5  : Weather event → weather_risk → 0.78
+  Tick  7  : Warehouse W3 congested → warehouse_pressure[W3] → 0.91
+  Tick 10  : Compound event → C6 breakdown + customs delay
+  Tick 12+ : Gradual recovery (weather -0.05/tick, carrier reliability +0.02/tick)
+
+  GENERATION LOGIC PER TICK
+  ─────────────────────────────────────────────────────────────────────────
+  For each of 50 shipments:
+  1. Randomly assign carrier (C1–C6), warehouse (W1–W5), priority (10/25/65%)
+  2. Sample base_drift from Exponential(mean=8)
+  3. If carrier reliability < 0.40: multiply drift × 2.5
+  4. Clamp drift to max 80%
+  5. Sample all other features from their specified distributions
+  6. Return as plain dict (ObserveNode converts to Shipment dataclass)
+
+
+════════════════════════════════════════════════════════════════════════════════
+13. GUARDRAIL SYSTEM (ActNode)
+════════════════════════════════════════════════════════════════════════════════
+
+  All 4 conditions must pass for AUTO execution:
+
+  Guardrail 1 — Confidence:     intervention.score >= 0.70
+  Guardrail 2 — Cost Control:   intervention.cost_delta_pct <= 5.0%
+  Guardrail 3 — Priority Gate:  shipment.priority != "CRITICAL"
+  Guardrail 4 — Viability:      intervention.revival_prob >= 0.65
+
+  If ALL pass → execution = "AUTO", ship.status = "RESCUED"
+  If ANY fail → execution = "PENDING_HUMAN"
+                intervention added to pending_approvals
+                EscalationCard appears in React frontend
+
+  GUARDRAIL INTENT
+  ─────────────────────────────────────────────────────────────────────────
+  G1: Don't auto-execute low-confidence plans (bad capacity matches)
+  G2: Don't auto-spend more than 5% extra without human sign-off
+  G3: CRITICAL shipments ALWAYS require human approval (regulatory coverage)
+  G4: Don't reroute through carriers unlikely to succeed anyway
+
+
+════════════════════════════════════════════════════════════════════════════════
+14. HUMAN-IN-THE-LOOP (HITL) FLOW
+════════════════════════════════════════════════════════════════════════════════
+
+  1. ActNode flags intervention as PENDING_HUMAN
+     → intervention id added to state.pending_approvals
+
+  2. FastAPI returns updated state with pending_approvals non-empty
+
+  3. React store updates → App.tsx renders EscalationCard(s)
+
+  4. EscalationCard shows:
+     • Shipment id + priority badge
+     • Route / ETA gain / cost delta / revival probability
+     • Claude's causal reasoning (why it's at risk)
+     • APPROVE and REJECT buttons
+
+  5. User clicks APPROVE or REJECT
+     → api.ts calls POST /approve/{id} with {"decision": "approve/reject"}
+
+  6. FastAPI updates intervention.execution and ship.status
+     → removes id from pending_approvals
+     → returns updated state
+
+  7. React store updates → EscalationCard disappears
+     → NetworkMap re-renders with new rescue path (if approved)
+
+
+════════════════════════════════════════════════════════════════════════════════
+15. COMMUNICATION PROTOCOLS
+════════════════════════════════════════════════════════════════════════════════
+
+  MANUAL MODE (button click)
+  ─────────────────────────────────────────────────────────────────────────
+  React → POST /api/tick → FastAPI → LangGraph → JSON response → Zustand store
+
+  AUTO MODE (SSE stream)
+  ─────────────────────────────────────────────────────────────────────────
+  React (SSE client) ← GET /api/stream ← FastAPI (asyncio.sleep(5) + invoke)
+  No polling. No WebSocket. EventSource API, persistent connection.
+  Client disconnects EventSource when autoRun toggle is turned OFF.
+
+  APPROVAL FLOW
+  ─────────────────────────────────────────────────────────────────────────
+  React → POST /api/approve/{id} → FastAPI mutates state → JSON response
+
+  PROXY
+  ─────────────────────────────────────────────────────────────────────────
+  Vite dev server proxies /api/* → http://localhost:8000/*
+  No CORS issues in development. In production, serve React build via FastAPI
+  static files or separate nginx/CDN.
+
+
+════════════════════════════════════════════════════════════════════════════════
+16. EXTERNAL DEPENDENCIES
+════════════════════════════════════════════════════════════════════════════════
+
+  Service           Used By             Purpose
+  ───────────────── ─────────────────── ─────────────────────────────────────
+  Anthropic API     CausalReasonNode    Claude model inference (HTTPS)
+  CartoDB Tiles     NetworkMap          Dark map tile layer (free, no key)
+  (no others)
+
+  All other data is generated locally. No external databases. No auth services.
+  No third-party logistics APIs.
+
+
+════════════════════════════════════════════════════════════════════════════════
+17. ENVIRONMENT & CONFIGURATION
+════════════════════════════════════════════════════════════════════════════════
+
+  .env (backend root)
+  ─────────────────────────────────────────────────────────────────────────
+  ANTHROPIC_API_KEY=your_key_here
+
+  No other required environment variables.
+
+  PORTS
+  ─────────────────────────────────────────────────────────────────────────
+  Frontend (Vite dev) : http://localhost:5173
+  Backend (FastAPI)   : http://localhost:8000
+
+  STARTUP COMMANDS
+  ─────────────────────────────────────────────────────────────────────────
+  # Step 1: Train model (once, before hackathon)
+  cd backend && python models/train.py
+
+  # Step 2: Start backend
+  cd backend && uvicorn main:app --reload --port 8000
+
+  # Step 3: Start frontend (separate terminal)
+  cd frontend && npm install && npm run dev
+
+  # Open browser: http://localhost:5173
+
+
+════════════════════════════════════════════════════════════════════════════════
+18. PYTHON DEPENDENCIES (backend/requirements.txt)
+════════════════════════════════════════════════════════════════════════════════
+
+  fastapi>=0.110.0
+  uvicorn[standard]>=0.27.0
+  python-dotenv>=1.0.0
+  langgraph>=0.0.40
+  langchain>=0.1.0
+  anthropic>=0.20.0
+  xgboost>=2.0.0
+  shap>=0.44.0
+  scikit-learn>=1.4.0
+  chromadb>=0.4.22
+  sentence-transformers>=2.6.0
+  pandas>=2.0.0
+  numpy>=1.26.0
+  networkx>=3.2
+
+
+════════════════════════════════════════════════════════════════════════════════
+19. NODE / FRONTEND DEPENDENCIES (frontend/package.json)
+════════════════════════════════════════════════════════════════════════════════
+
+  react@^18.2.0
+  react-dom@^18.2.0
+  leaflet@^1.9.4
+  react-leaflet@^4.2.1
+  recharts@^2.10.0
+  zustand@^4.5.0
+  clsx@^2.1.0
+  typescript@^5.3.0
+  vite@^5.1.0
+  @vitejs/plugin-react@^4.2.0
+  tailwindcss@^3.4.0
+  autoprefixer@^10.4.0
+  postcss@^8.4.0
+
+
+════════════════════════════════════════════════════════════════════════════════
+20. WHAT TO DEMONSTRATE TO JUDGES (PER STAGE)
+════════════════════════════════════════════════════════════════════════════════
+
+  STAGE            WHAT TO SHOW                        WHERE TO POINT
+  ───────────────  ──────────────────────────────────  ─────────────────────
+  OBSERVE          50 dots appear on map, tick counter  NetworkMap + Header
+  RISK_ASSESS      Risk Feed fills with red/orange rows  RiskFeed component
+  CAUSAL_REASON    Hypothesis text appears in panel     ReasoningPanel
+                   "Live Claude API call" — show code   causal_reason.py
+  PLAN             Score calculation, capacity selected  plan.py score_path()
+  ACT (AUTO)       Shipment turns RESCUED, green line   NetworkMap + RiskFeed
+  ACT (HITL)       Escalation card with APPROVE/REJECT  EscalationCard
+  LEARN            Episode count increments             LearningPanel
+                   Boost bars change value              LearningPanel chart
+  GUARDRAILS       Point to ActNode's 4 conditions      act.py
+  AGENTIC PROOF    Walk the graph topology              agent/graph.py
+
+================================================================================
+END OF SYSTEM ARCHITECTURE DOCUMENT
+Phantom Fleet v3 | Updated PRD (React + FastAPI)
+================================================================================

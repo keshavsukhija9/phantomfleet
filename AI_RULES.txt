@@ -1,0 +1,274 @@
+AI RULES:
+
+================================================================================
+AI_RULES — PHANTOM FLEET HARDWARE REALITY CHECK
+RTX 3050 + i7 13th Gen Build Guide
+================================================================================
+
+================================================================================
+WHAT THE RTX 3050 SOLVES (THE GOOD NEWS)
+================================================================================
+
+1. THE VECTOR MEMORY PIPELINE (Section 17.3)
+──────────────────────────────────────────────
+You specified all-MiniLM-L6-v2 via sentence-transformers for embedding
+episodes into ChromaDB.
+
+The Problem it solves:
+  Doing this on a CPU for every tick would add 100-300ms of lag per embedding.
+
+The 3050 Reality:
+  This model is incredibly lightweight (under 500MB). It will load entirely
+  into your 3050's VRAM and generate embeddings in single-digit milliseconds.
+  Your memory retrieval will be blazingly fast.
+
+
+2. XGBOOST TRAINING & SHAP INFERENCE (Sections 9 & 8.7)
+─────────────────────────────────────────────────────────
+The Problem it solves:
+  Generating SHAP values across 10,000 rows can be computationally expensive
+  on a CPU, and retraining the model live (if you dare) usually takes time.
+
+The 3050 Reality:
+  If you set tree_method='hist' and device='cuda' in your XGBoost parameters,
+  your 3050 will chew through 10,000 rows and 22 features almost instantly.
+  The SHAP GPUTreeExplainer will also generate the top-5 feature attributions
+  for the CausalReasonNode prompt in a fraction of a second.
+
+  XGBoost config to use:
+    model = XGBClassifier(
+        n_estimators=100,
+        max_depth=4,
+        tree_method='hist',     # ← enables GPU acceleration
+        device='cuda',          # ← tells XGBoost to use your 3050
+        eval_metric='logloss'
+    )
+
+
+3. IT SAVES YOU FROM RUNNING LOCAL LLMs
+─────────────────────────────────────────
+Your PRD wisely specifies Anthropic's Claude API for the reasoning and
+explanation nodes.
+
+If you had tried to run a local LLM like Llama 3 8B or Mistral to do the
+reasoning, your 3050 (which likely has 4GB or 8GB of VRAM) would have:
+  - Completely choked
+  - Out-of-memory crashed
+  - Generated text at 3 tokens per second
+
+Relying on the Claude API is exactly why your hardware won't bottleneck
+the reasoning layer. The 3050's VRAM is freed up entirely for embeddings
+and XGBoost — the jobs it's actually good at.
+
+
+================================================================================
+WHAT THE RTX 3050 DOES NOT SOLVE (THE DANGER ZONE)
+================================================================================
+
+This is where your hackathon demo is actually at risk.
+The heaviest parts of your architecture are CPU-bound, not GPU-bound.
+Your 3050 will sit at 0% utilization while these run:
+
+
+1. THE 3-TIER MONTE CARLO SIMULATOR (Section 12)
+──────────────────────────────────────────────────
+You want to run 50 (Demo) to 300 (Standard) stochastic simulations per
+candidate path.
+
+Unless you are writing custom CUDA kernels or using PyTorch tensors for
+the simulation math (which your PRD doesn't specify), this relies entirely
+on your CPU and Python's multiprocessing or concurrent.futures.
+
+Python's Global Interpreter Lock (GIL) is going to fight you here.
+
+Fix:
+  Use multiprocessing.Pool, NOT threading. Example:
+    from multiprocessing import Pool
+    with Pool(processes=8) as pool:
+        results = pool.map(run_single_simulation, paths)
+  This bypasses the GIL entirely and spreads runs across your i7 cores.
+
+
+2. A* PATH PLANNING + OR-TOOLS (Section 11)
+─────────────────────────────────────────────
+NetworkX and Google's OR-Tools (solving the Vehicle Routing Problem) are
+strictly CPU operations.
+
+If your logistics graph gets too dense or the OR-Tools constraint matrix
+gets too complex, your CPU will bottleneck — and the 3050 can't help you
+at all.
+
+Fix:
+  Keep graph hop depth ≤ 4 as specified. Set a hard 3-second timeout on
+  OR-Tools. Fall back to A*-only result if solver hits the limit.
+
+
+================================================================================
+THE VERDICT ON YOUR RTX 3050
+================================================================================
+
+  Your RTX 3050 perfectly solves the machine learning micro-latencies:
+  embeddings, XGBoost, and SHAP.
+
+  It makes the "AI" part of your Agentic AI run smoothly.
+
+  It cannot help your simulation math or graph planning.
+  Those live entirely on your CPU — which brings us to the good news.
+
+
+================================================================================
+WHERE YOUR i7 13TH GEN DOMINATES
+================================================================================
+
+1. IT PARALLELIZES YOUR MONTE CARLO RUNS (Section 12)
+───────────────────────────────────────────────────────
+A 13th Gen i7 typically has 14 to 16 physical cores (Performance + Efficiency).
+
+If you use Python's multiprocessing.Pool, you can bypass the GIL entirely
+and map your 50 FAST_DEMO Monte Carlo runs across all those cores simultaneously.
+
+What would take a standard laptop 8 seconds will take your i7 about 0.8 seconds.
+It will chew through the variance calculations like nothing.
+
+
+2. IT BRUTE-FORCES THE OR-TOOLS PLANNER (Section 11)
+──────────────────────────────────────────────────────
+Google's OR-Tools Vehicle Routing Problem (VRP) solver is an absolute beast,
+but under the hood, constraint programming relies heavily on incredibly fast
+single-core branch-and-bound operations.
+
+The i7 Reality:
+  13th Gen Raptor Lake chips have insane single-thread clock speeds
+  (often boosting over 5.0 GHz). Your NetworkX A* graph traversals and
+  the OR-Tools constraint matrices will execute so fast that you probably
+  won't even need the 3-second timeout you specified in Risk Mitigations
+  (Section 31).
+
+
+3. IT HANDLES THE "AGENTIC" OVERHEAD (LangGraph + FastAPI)
+────────────────────────────────────────────────────────────
+You are running simultaneously:
+  - A 14-node LangGraph state machine
+  - A FastAPI backend pushing Server-Sent Events (SSE) every tick
+  - An in-memory Pandas dataframe for the world state
+  - A Streamlit frontend
+
+Standard CPUs stutter under heavy asynchronous context switching —
+handling UI updates while calculating ML features.
+
+The i7 Reality:
+  The hybrid architecture of the 13th Gen i7 means your OS will likely
+  dump the background FastAPI/Streamlit UI tasks onto the E-cores,
+  leaving your P-cores completely dedicated to the heavy LangGraph
+  reasoning and path planning.
+
+  Your UI won't freeze when the agent makes a complex decision.
+
+
+================================================================================
+THE NEW REALITY: YOUR HARDWARE IS NO LONGER THE EXCUSE
+================================================================================
+
+  i7 13th Gen  →  Logic, simulation, planning, async overhead
+  RTX 3050     →  Embeddings, XGBoost, SHAP inference
+
+  With this combination, your local machine will easily hit the
+  < 15 seconds per tick SLA specified in Section 28.
+
+──────────────────────────────────────────────────────────────────────────────
+THE ONLY BOTTLENECK LEFT IS THE NETWORK
+──────────────────────────────────────────────────────────────────────────────
+
+  Your entire remaining latency budget is now dictated by the
+  Anthropic Claude API.
+
+  If Anthropic takes 6 seconds to return the JSON for CausalReasonNode,
+  your i7 cannot speed that up.
+
+  Mitigation strategies:
+    1. Set max_tokens=200 on every Claude call (keeps response short and fast)
+    2. Cap CausalReasonNode to 3 shipments per tick (already in the 4hr PRD)
+    3. Run ExplainNode in a background thread (non-blocking, already specified)
+    4. If API is slow during demo: pre-generate 3 example hypotheses and
+       cache them as fallbacks for the exact demo disruption sequence
+    5. Test your API latency the night before — Anthropic's response times
+       vary by time of day
+
+================================================================================
+HARDWARE OPTIMIZATION QUICK REFERENCE
+================================================================================
+
+  TASK                        USE          CONFIG
+  ─────────────────────────── ──────────── ──────────────────────────────────
+  XGBoost training            RTX 3050     device='cuda', tree_method='hist'
+  SHAP value generation       RTX 3050     shap.GPUTreeExplainer(model)
+  Episode embedding           RTX 3050     model.to('cuda') before encode()
+  Monte Carlo simulation      i7 (all cores) multiprocessing.Pool(processes=12)
+  A* path planning            i7 (single)  networkx built-in, no config needed
+  OR-Tools VRP                i7 (single)  hard timeout=3s, fallback to A*
+  LangGraph state machine     i7 (P-cores) async, no config needed
+  FastAPI + SSE               i7 (E-cores) OS handles automatically
+  Claude API calls            NETWORK      max_tokens=200, cap to 3/tick
+
+================================================================================
+SENTENCE-TRANSFORMERS GPU SETUP (copy-paste ready)
+================================================================================
+
+  from sentence_transformers import SentenceTransformer
+  import torch
+
+  device = "cuda" if torch.cuda.is_available() else "cpu"
+  print(f"Embedding on: {device}")   # should print 'cuda' on your machine
+
+  embedder = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+
+  # This now runs on your 3050 — single-digit millisecond per episode
+  vector = embedder.encode("carrier degradation CRITICAL afternoon")
+
+================================================================================
+XGBOOST GPU SETUP (copy-paste ready)
+================================================================================
+
+  import xgboost as xgb
+  import shap
+
+  model = xgb.XGBClassifier(
+      n_estimators=100,
+      max_depth=4,
+      learning_rate=0.1,
+      tree_method="hist",       # GPU-accelerated histogram method
+      device="cuda",            # your RTX 3050
+      eval_metric="logloss",
+      use_label_encoder=False
+  )
+  model.fit(X_train, y_train)
+
+  # GPU SHAP (faster than CPU TreeExplainer on your machine)
+  explainer = shap.GPUTreeExplainer(model)
+  shap_values = explainer.shap_values(X_row)
+
+================================================================================
+MULTIPROCESSING MONTE CARLO SETUP (copy-paste ready)
+================================================================================
+
+  from multiprocessing import Pool, cpu_count
+
+  def run_single_simulation(args):
+      path, graph_state, shipment = args
+      # ... perturbation logic ...
+      return {"sla_met": True, "eta_gain": 3.2}   # example
+
+  def run_monte_carlo(paths, graph_state, shipment, n_runs=50):
+      args = [(p, graph_state, shipment) for p in paths for _ in range(n_runs)]
+      # Use 75% of cores — leave some for Streamlit/FastAPI
+      n_workers = max(1, int(cpu_count() * 0.75))
+      with Pool(processes=n_workers) as pool:
+          results = pool.map(run_single_simulation, args)
+      return results
+
+  # On your i7 13th Gen (16 cores): n_workers = 12
+  # 50 simulations × 12 parallel = done in ~0.8 seconds
+
+================================================================================
+END OF AI_RULES
+================================================================================
