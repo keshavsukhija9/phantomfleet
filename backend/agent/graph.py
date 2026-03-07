@@ -50,8 +50,11 @@ def build_graph():
     wf.add_edge("act", "learn")
     wf.add_edge("learn", END)
     
-    # Compile with memory saver
-    return wf.compile(checkpointer=MemorySaver())
+    # Compile with memory saver and interrupt before act for human approval
+    return wf.compile(
+        checkpointer=MemorySaver(),
+        interrupt_before=["act"]
+    )
 
 
 # Create global app instance

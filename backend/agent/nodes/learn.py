@@ -45,9 +45,9 @@ def run(state: AgentState) -> AgentState:
             episode_count += 1
             stored_episodes.append(iid)  # Mark as stored (list not set)
             
-            # Update calibration boost for this carrier (keyed by carrier, not shipment)
+            # Update calibration boost for this shipment (keyed by shipment_id per PRD Section 2)
             boost = get_boost(ship.carrier, inv.outcome)
-            calibration_boost[ship.carrier] = boost
+            calibration_boost[inv.shipment_id] = boost
         except Exception as e:
             print(f"Error storing episode {iid}: {e}")
     

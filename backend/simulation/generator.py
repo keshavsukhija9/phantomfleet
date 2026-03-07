@@ -40,8 +40,8 @@ class SimulationEngine:
                 self.carrier_reliability["C6"] = 0.20
                 self.weather_risk = 0.65
         
-        # Gradual recovery after tick 12
-        if self.tick > 12:
+        # Gradual recovery after tick 15
+        if self.tick > 15:
             self.weather_risk = max(0.1, self.weather_risk - 0.05)
             for k in self.carrier_reliability:
                 self.carrier_reliability[k] = min(0.85, self.carrier_reliability[k] + 0.02)

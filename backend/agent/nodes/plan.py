@@ -11,7 +11,7 @@ def run(state: AgentState) -> AgentState:
     """
     PlanNode: Score capacity opportunities and create interventions.
     
-    Applies memory-based calibration boost to scoring (keyed by carrier).
+    Applies memory-based calibration boost to scoring (keyed by shipment_id per PRD).
     """
     active_at_risk = state.get("active_at_risk", [])
     shipments = state.get("shipments", {})
@@ -21,8 +21,8 @@ def run(state: AgentState) -> AgentState:
     
     for sid in active_at_risk[:3]:  # Cap at 3
         ship = shipments[sid]
-        # Get boost by carrier, not by shipment ID
-        boost = calibration_boost.get(ship.carrier, 1.0)
+        # Get boost by shipment_id per PRD Section 2
+        boost = calibration_boost.get(sid, 1.0)
         
         # Score all capacity entries
         scored = [(score_path(c, boost), c) for c in CAPACITY_POOL]

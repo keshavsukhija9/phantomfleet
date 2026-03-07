@@ -16,25 +16,24 @@ An autonomous logistics intelligence system that implements a complete **Observe
 
 ```bash
 # 1. Install dependencies
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 
 # 2. Set your API key in .env
 ANTHROPIC_API_KEY=sk-ant-your-key-here
 
 # 3. Train the model
-cd backend && python models/train.py
+cd backend && python models/train.py && cd ..
 
 # 4. Test the system
-python test_system.py
+cd backend && python test_system.py && cd ..
 
-# 5. Start backend (keep running)
-uvicorn main:app --reload --port 8000
-
-# 6. Start frontend (new terminal)
-streamlit run app.py
+# 5. Run the app (PRD-compliant Streamlit version)
+streamlit run app_streamlit.py
 ```
 
 Open browser to `http://localhost:8501` 🎉
+
+**Alternative:** For the React + FastAPI version, see [GET_STARTED.md](GET_STARTED.md)
 
 **See [QUICKSTART.md](QUICKSTART.md) for detailed instructions.**
 
@@ -108,7 +107,7 @@ The simulation engine has pre-programmed disruptions for demo reliability:
 - **Tick 5**: Weather event (risk increases to 0.78)
 - **Tick 7**: Warehouse W3 congestion (pressure spikes to 0.91)
 - **Tick 10**: Compound event (C6 breakdown + customs delay)
-- **Tick 12+**: Gradual recovery
+- **Tick 15+**: Gradual recovery
 
 ## Guardrails
 

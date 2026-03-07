@@ -11,7 +11,7 @@ Complete setup in 5 minutes!
 ## Step 1: Install Dependencies
 
 ```bash
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Step 2: Set API Key
@@ -26,6 +26,7 @@ ANTHROPIC_API_KEY=sk-ant-your-actual-key-here
 ```bash
 cd backend
 python models/train.py
+cd ..
 ```
 
 Expected output:
@@ -40,28 +41,33 @@ Model saved to backend/models/model.pkl
 ## Step 4: Test the System
 
 ```bash
+cd backend
 python test_system.py
+cd ..
 ```
 
 All 7 tests should pass ✓
 
-## Step 5: Start Backend
+## Step 5: Run the App (PRD-compliant Streamlit version)
 
 ```bash
-uvicorn main:app --reload --port 8000
-```
-
-Keep this terminal running.
-
-## Step 6: Start Frontend
-
-Open a new terminal:
-
-```bash
-streamlit run app.py
+streamlit run app_streamlit.py
 ```
 
 Browser will open automatically at `http://localhost:8501`
+
+**Alternative:** For the React + FastAPI version:
+
+Terminal 1:
+```bash
+cd backend
+uvicorn main:app --reload --port 8000
+```
+
+Terminal 2:
+```bash
+streamlit run app.py
+```
 
 ## 🎮 Using the Demo
 

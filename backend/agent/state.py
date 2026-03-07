@@ -46,7 +46,7 @@ class AgentState(TypedDict, total=False):
     tick: int
     capacity_opportunities: List[dict]
     episode_count: int
-    calibration_boost: Dict[str, float]  # Keyed by carrier
+    calibration_boost: Dict[str, float]  # shipment_id → score multiplier from memory
     active_at_risk: List[str]
     causal_map: Dict[str, dict]
     shap_map: Dict[str, dict]
