@@ -3,8 +3,8 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pydantic import BaseModel, Field
-from langchain_huggingface import HuggingFaceEndpoint
-from langchain_core.prompts import PromptTemplate
+from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from agent.state import AgentState
 from dotenv import load_dotenv
@@ -49,15 +49,18 @@ class CausalHypothesisSchema(BaseModel):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# HUGGING FACE LLM SETUP - Llama-3-8B-Instruct (Free Tier)
+# HUGGING FACE LLM SETUP - Llama-3-8B-Instruct via ChatHuggingFace
 # ═══════════════════════════════════════════════════════════════════════════
 
 _llm_instance = None  # Cache LLM instance
 
 def get_llm():
     """
-    Initialize Hugging Face endpoint with Llama-3-8B-Instruct.
-    Falls back to mock responses if token is missing or API fails.
+    Initialize ChatHuggingFace with Llama-3-8B-Instruct.
+    Uses ChatHuggingFace (conversational API) instead of HuggingFaceEndpoint
+    (text-generation API) because providers like Novita only support the
+    conversational task for instruct models.
+    Falls back to None if token is missing or API fails.
     """
     global _llm_instance
     
@@ -71,16 +74,18 @@ def get_llm():
         return None
     
     try:
-        _llm_instance = HuggingFaceEndpoint(
+        # Create the underlying endpoint
+        endpoint = HuggingFaceEndpoint(
             repo_id="meta-llama/Meta-Llama-3-8B-Instruct",
-            task="conversational",
             max_new_tokens=512,
             temperature=0.1,
             do_sample=False,
             repetition_penalty=1.1,
             huggingfacehub_api_token=hf_token,
         )
-        print("✓ Llama-3-8B-Instruct initialized via Hugging Face")
+        # Wrap with ChatHuggingFace for conversational API support
+        _llm_instance = ChatHuggingFace(llm=endpoint)
+        print("✓ Llama-3-8B-Instruct initialized via ChatHuggingFace")
         return _llm_instance
     except Exception as e:
         print(f"⚠️  Hugging Face API error: {e}")
@@ -96,13 +101,11 @@ parser = JsonOutputParser(pydantic_object=CausalHypothesisSchema)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PROMPT TEMPLATE - Optimized for Llama-3-8B reasoning
+# PROMPT TEMPLATE - Chat-style prompt for ChatHuggingFace
 # ═══════════════════════════════════════════════════════════════════════════
 
-prompt = PromptTemplate(
-    template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-
-You are Phantom Fleet's Causal Reasoning Engine for logistics risk analysis.
+prompt = ChatPromptTemplate.from_messages([
+    ("system", """You are Phantom Fleet's Causal Reasoning Engine for logistics risk analysis.
 
 Your task: Analyze shipment telemetry and SHAP feature importance to produce a causal hypothesis explaining WHY a shipment is at risk.
 
@@ -119,11 +122,8 @@ CRITICAL RULES:
    - COMPOUND (multiple factors above thresholds)
    - UNKNOWN (insufficient data)
 
-{format_instructions}
-
-<|eot_id|><|start_header_id|>user<|end_header_id|>
-
-SHIPMENT ANALYSIS REQUEST:
+{format_instructions}"""),
+    ("human", """SHIPMENT ANALYSIS REQUEST:
 
 Shipment ID: {shipment_id}
 Priority: {priority}
@@ -141,16 +141,8 @@ FEATURE VALUES:
 TOP SHAP DRIVERS (what the model reacted to most):
 {shap_features}
 
-Produce your causal hypothesis as valid JSON.<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-
-""",
-    input_variables=[
-        "shipment_id", "priority", "failure_prob", "eta_drift", 
-        "carrier_rel", "warehouse_press", "weather", "handoff", 
-        "downstream", "priority_score", "shap_features"
-    ],
-    partial_variables={"format_instructions": parser.get_format_instructions()},
-)
+Produce your causal hypothesis as valid JSON."""),
+]).partial(format_instructions=parser.get_format_instructions())
 
 
 # ═══════════════════════════════════════════════════════════════════════════
