@@ -3,20 +3,13 @@ import { motion } from 'motion/react';
 import { fetchState, runTick, approveIntervention, streamUrl } from './api';
 import type { AgentState } from './types';
 import { LandingPage } from './components/LandingPage';
-import { CommandHeader } from './components/CommandHeader';
-import { Sidebar, type ViewId } from './components/Sidebar';
-import { Overview } from './components/Overview';
-import { RiskMonitor } from './components/RiskMonitor';
-import { AIReasoning } from './components/AIReasoning';
-import { Interventions } from './components/Interventions';
-import { Learning } from './components/Learning';
+import { Dashboard } from './components/dashboard';
 
 const STORAGE_KEY = 'phantom-fleet-entered';
 
 export default function App() {
   const [entered, setEntered] = useState(() => typeof window !== 'undefined' && sessionStorage.getItem(STORAGE_KEY) === '1');
   const [state, setState] = useState<AgentState | null>(null);
-  const [view, setView] = useState<ViewId>('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoRun, setAutoRun] = useState(false);
@@ -65,11 +58,11 @@ export default function App() {
 
   if (!state) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[var(--bg-base)]">
+      <div className="flex items-center justify-center min-h-screen bg-[var(--bg)]">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          className="w-12 h-12 border-2 border-[var(--accent)] border-t-transparent rounded-full"
+          className="w-12 h-12 border-2 border-[var(--blue)] border-t-transparent rounded-full"
         />
       </div>
     );
@@ -102,80 +95,26 @@ export default function App() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)]">
-      <Sidebar currentView={view} onNavigate={setView} state={state} />
-      <div className="relative z-10 flex-1 flex flex-col min-h-0 ml-[260px]">
-        <CommandHeader
-          state={state}
-          autoRun={autoRun}
-          onToggleAutoRun={() => setAutoRun(v => !v)}
-          onRunTick={handleRunTick}
-          isLoading={loading}
-          currentView={view}
-        />
-        <main className="flex-1 p-6 pb-8 flex flex-col min-h-0">
-          {loading && (
-            <div className="absolute top-0 left-[260px] right-0 h-0.5 skeleton z-[100]" />
-          )}
-          {error && (
-            <motion.div
-              initial={{ y: -8, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              className="bg-[var(--danger-bg)] border border-[var(--danger)] text-[var(--danger)] p-4 mb-6 rounded-[var(--radius-lg)] font-medium text-sm"
-            >
-              {error}
-            </motion.div>
-          )}
-          <motion.div
-            key={view}
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="h-full flex flex-col"
-          >
-          {view === 'overview' && (
-            <Overview
-              state={state}
-              onHighlight={() => { }}
-            />
-          )}
-
-          {view === 'risk' && (
-            <RiskMonitor
-              shipments={state.shipments}
-              activeAtRisk={state.active_at_risk}
-              onHighlight={() => { }}
-            />
-          )}
-
-          {view === 'interventions' && (
-            <Interventions
-              interventions={state.interventions}
-              pendingApprovals={state.pending_approvals}
-              onApprove={handleApprove}
-              loadingId={approveLoadingId}
-              causalMap={state.causal_map}
-            />
-          )}
-
-          {view === 'reasoning' && (
-            <AIReasoning
-              causalMap={state.causal_map}
-              shapMap={state.shap_map}
-              activeAtRisk={state.active_at_risk}
-            />
-          )}
-
-          {view === 'learning' && (
-            <Learning
-              episodeCount={state.episode_count}
-              calibrationBoost={state.calibration_boost}
-              storedEpisodes={state.stored_episodes}
-            />
-          )}
-          </motion.div>
-        </main>
-      </div>
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)]">
+      {loading && <div className="fixed top-0 left-0 right-0 h-0.5 skeleton z-[100]" />}
+      {error && (
+        <motion.div
+          initial={{ y: -8, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-[var(--red-bg)] border border-[var(--red)] text-[var(--red)] px-4 py-3 rounded-lg font-medium text-sm shadow-lg"
+        >
+          {error}
+        </motion.div>
+      )}
+      <Dashboard
+        state={state}
+        autoRun={autoRun}
+        onToggleAutoRun={() => setAutoRun((v) => !v)}
+        onRunTick={handleRunTick}
+        onApprove={handleApprove}
+        isLoading={loading}
+        approveLoadingId={approveLoadingId}
+      />
     </div>
   );
 }
