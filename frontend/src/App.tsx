@@ -1,15 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchState, runTick, approveIntervention, streamUrl } from './api';
 import type { AgentState } from './types';
-import { TopBar } from './components/TopBar';
 import { Sidebar, type ViewId } from './components/Sidebar';
 import { Overview } from './components/Overview';
-import { NetworkMap } from './components/NetworkMap';
 import { RiskMonitor } from './components/RiskMonitor';
 import { AIReasoning } from './components/AIReasoning';
 import { Interventions } from './components/Interventions';
 import { Learning } from './components/Learning';
-import './App.css';
 
 const defaultState: AgentState = {
   shipments: {},
@@ -31,7 +28,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoRun, setAutoRun] = useState(false);
-  const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [approveLoadingId, setApproveLoadingId] = useState<string | null>(null);
 
   const loadState = useCallback(async () => {
@@ -93,95 +89,77 @@ export default function App() {
   };
 
   return (
-    <div className="app-layout">
-      <TopBar
-        tick={state.tick}
+    <div className="flex min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)]">
+      {/* 220px Fixed Sidebar */}
+      <Sidebar
+        currentView={view}
+        onNavigate={setView}
+        state={state}
         autoRun={autoRun}
-        onToggleAutoRun={() => setAutoRun((v) => !v)}
+        onToggleAutoRun={() => setAutoRun(v => !v)}
         onRunTick={handleRunTick}
         isLoading={loading}
       />
-      {loading && <div className="loading-bar" />}
-      <div className="app-main-row">
-        <Sidebar currentView={view} onNavigate={setView} />
-        <main className="workspace">
-          {error && (
-            <div className="err-banner" role="alert">
-              {error}
-            </div>
-          )}
+
+      {/* Main Content Area (Fluid) */}
+      <main className="flex-1 ml-[220px] p-8 flex flex-col relative overflow-hidden transition-opacity duration-200">
+
+        {/* Skeleton Shimmer during long compute */}
+        {loading && (
+          <div className="absolute top-0 left-0 right-0 h-1 skeleton z-[100]" />
+        )}
+
+        {error && (
+          <div className="bg-[var(--accent-danger-dim)] border border-[var(--accent-danger)] text-[var(--accent-danger)] p-4 mb-6 font-['IBM_Plex_Mono'] text-sm tracking-wide">
+            SYSTEM ERR: {error}
+          </div>
+        )}
+
+        {/* View Routing */}
+        <div key={view} className="fade-enter h-full flex flex-col">
           {view === 'overview' && (
-            <Overview state={state} highlightedId={highlightedId} onHighlight={setHighlightedId} />
+            <Overview
+              state={state}
+              onHighlight={() => { }}
+            />
           )}
-          {view === 'network' && (
-            <>
-              <div className="workspace-header">
-                <h1 className="workspace-title">Network</h1>
-                <p className="workspace-subtitle">Shipments and routes</p>
-              </div>
-              <div className="panel">
-                <div className="panel-body" style={{ padding: 0 }}>
-                  <NetworkMap
-                    shipments={state.shipments}
-                    highlightedId={highlightedId}
-                    onHighlight={setHighlightedId}
-                  />
-                </div>
-              </div>
-            </>
-          )}
+
           {view === 'risk' && (
-            <>
-              <div className="workspace-header">
-                <h1 className="workspace-title">Risk Monitor</h1>
-                <p className="workspace-subtitle">Shipments with highest failure probability</p>
-              </div>
-              <RiskMonitor
-                shipments={state.shipments}
-                activeAtRisk={state.active_at_risk}
-                highlightedId={highlightedId}
-                onHighlight={setHighlightedId}
-              />
-            </>
+            <RiskMonitor
+              shipments={state.shipments}
+              activeAtRisk={state.active_at_risk}
+              onHighlight={() => { }}
+            />
           )}
-          {view === 'reasoning' && (
-            <>
-              <div className="workspace-header">
-                <h1 className="workspace-title">AI Reasoning</h1>
-                <p className="workspace-subtitle">Causal analysis from the system</p>
-              </div>
-              <AIReasoning causalMap={state.causal_map} activeAtRisk={state.active_at_risk} />
-            </>
-          )}
+
           {view === 'interventions' && (
-            <>
-              <div className="workspace-header">
-                <h1 className="workspace-title">Interventions</h1>
-                <p className="workspace-subtitle">Recommended actions and approvals</p>
-              </div>
-              <Interventions
-                interventions={state.interventions}
-                pendingApprovals={state.pending_approvals}
-                onApprove={handleApprove}
-                loadingId={approveLoadingId}
-              />
-            </>
+            <Interventions
+              interventions={state.interventions}
+              pendingApprovals={state.pending_approvals}
+              onApprove={handleApprove}
+              loadingId={approveLoadingId}
+              causalMap={state.causal_map}
+            />
           )}
+
+          {view === 'reasoning' && (
+            <AIReasoning
+              causalMap={state.causal_map}
+              shapMap={state.shap_map}
+              activeAtRisk={state.active_at_risk}
+            />
+          )}
+
           {view === 'learning' && (
-            <>
-              <div className="workspace-header">
-                <h1 className="workspace-title">Learning</h1>
-                <p className="workspace-subtitle">How the system improves from outcomes</p>
-              </div>
-              <Learning
-                episodeCount={state.episode_count}
-                calibrationBoost={state.calibration_boost}
-                storedEpisodes={state.stored_episodes}
-              />
-            </>
+            <Learning
+              episodeCount={state.episode_count}
+              calibrationBoost={state.calibration_boost}
+              storedEpisodes={state.stored_episodes}
+            />
           )}
-        </main>
-      </div>
+        </div>
+
+      </main>
     </div>
   );
 }

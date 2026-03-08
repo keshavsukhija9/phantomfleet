@@ -1,88 +1,121 @@
-import { useMemo } from 'react';
+import Plotly from 'plotly.js-dist-min';
+import createPlotlyComponent from 'react-plotly.js/factory';
 import type { Shipment } from '../types';
+import { useMemo } from 'react';
+
+const Plot = createPlotlyComponent(Plotly);
 
 interface NetworkMapProps {
   shipments: Record<string, Shipment>;
-  highlightedId: string | null;
   onHighlight: (id: string | null) => void;
 }
 
-export function NetworkMap({ shipments, highlightedId, onHighlight }: NetworkMapProps) {
-  const list = useMemo(() => Object.values(shipments), [shipments]);
+// Map Indian cities to coordinates for the visualization
+const LOCATIONS: Record<string, { lat: number; lon: number }> = {
+  W1: { lat: 19.0760, lon: 72.8777 }, // Mumbai
+  W2: { lat: 28.7041, lon: 77.1025 }, // Delhi
+  W3: { lat: 13.0827, lon: 80.2707 }, // Chennai
+  D1: { lat: 12.9716, lon: 77.5946 }, // Bangalore
+  D2: { lat: 17.3850, lon: 78.4867 }, // Hyderabad
+  D3: { lat: 22.5726, lon: 88.3639 }, // Kolkata
+};
 
-  const positions = useMemo(() => {
-    const n = list.length;
-    const centerX = 50;
-    const centerY = 50;
-    const radius = 38;
-    return list.map((s, i) => {
-      const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
-      return {
-        id: s.id,
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle),
-        status: s.status,
-      };
+export function NetworkMap({ shipments, onHighlight }: NetworkMapProps) {
+  const plotData = useMemo(() => {
+    const data: any[] = [];
+
+    // Rescued lines
+    const rescued = Object.values(shipments).filter(s => s.status === 'RESCUED');
+    rescued.forEach(s => {
+      const origin = LOCATIONS[s.origin] || LOCATIONS['W1'];
+      const dest = LOCATIONS[s.destination] || LOCATIONS['D1'];
+      data.push({
+        type: 'scattermapbox',
+        mode: 'lines',
+        lat: [origin.lat, dest.lat],
+        lon: [origin.lon, dest.lon],
+        line: { width: 2, color: 'rgba(0, 194, 255, 0.6)' }, // --accent-primary
+        hoverinfo: 'none',
+        showlegend: false,
+      });
     });
-  }, [list]);
 
-  const width = 600;
-  const height = 400;
-  const scale = Math.min(width, height) / 100;
+    // At-Risk shipments
+    const atRisk = Object.values(shipments).filter(s => s.status === 'AT_RISK' || s.status === 'FAILED');
+    if (atRisk.length > 0) {
+      data.push({
+        type: 'scattermapbox',
+        mode: 'markers+text',
+        lat: atRisk.map(s => (LOCATIONS[s.origin] || LOCATIONS['W1']).lat),
+        lon: atRisk.map(s => (LOCATIONS[s.origin] || LOCATIONS['W1']).lon),
+        text: atRisk.map(s => s.id),
+        textposition: 'top center',
+        textfont: { family: 'IBM Plex Mono', size: 10, color: '#E8EAF0' },
+        marker: {
+          symbol: 'circle',
+          size: atRisk.map(s => Math.max(8, (s.failure_prob || 0.5) * 20)),
+          color: atRisk.map(s => s.status === 'FAILED' ? '#FF4444' : '#FFB020'), // danger / warning
+          opacity: 0.8,
+        },
+        hoverinfo: 'text',
+        hovertext: atRisk.map(s => `${s.id} - Prob: ${((s.failure_prob || 0) * 100).toFixed(1)}%`),
+        name: 'At Risk',
+        showlegend: false,
+      });
+    }
+
+    // Nodes (Warehouses/Destinations)
+    const nodeLats = Object.values(LOCATIONS).map(l => l.lat);
+    const nodeLons = Object.values(LOCATIONS).map(l => l.lon);
+    data.push({
+      type: 'scattermapbox',
+      mode: 'markers+text',
+      lat: nodeLats,
+      lon: nodeLons,
+      text: Object.keys(LOCATIONS),
+      textposition: 'bottom right',
+      textfont: { family: 'IBM Plex Mono', size: 10, color: '#7A8099' },
+      marker: {
+        symbol: 'square',
+        size: 8,
+        color: '#00C2FF', // cyan squares
+      },
+      hoverinfo: 'none',
+      showlegend: false,
+    });
+
+    return data;
+  }, [shipments]);
 
   return (
-    <div className="network-map">
-      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
-        {/* Route lines (simplified: origin/dest style) */}
-        {positions.slice(0, 8).map((p, i) => {
-          const next = positions[(i + 3) % positions.length];
-          if (!next) return null;
-          return (
-            <line
-              key={`line-${p.id}-${next.id}`}
-              x1={p.x * scale}
-              y1={p.y * scale}
-              x2={next.x * scale}
-              y2={next.y * scale}
-              stroke="var(--border-default)"
-              strokeWidth={0.5}
-              opacity={0.6}
-            />
-          );
-        })}
-        {positions.map(({ id, x, y, status }) => {
-          const r = highlightedId === id ? 8 : 6;
-          const isHighlight = highlightedId === id;
-          return (
-            <g
-              key={id}
-              className="node"
-              onMouseEnter={() => onHighlight(id)}
-              onMouseLeave={() => onHighlight(null)}
-            >
-              <circle
-                cx={x * scale}
-                cy={y * scale}
-                r={r}
-                className={`node-${status.toLowerCase().replace('_', '-')}`}
-                stroke={isHighlight ? 'var(--text-primary)' : 'transparent'}
-                strokeWidth={2}
-              />
-              {isHighlight && (
-                <text
-                  x={x * scale}
-                  y={y * scale - r - 6}
-                  textAnchor="middle"
-                  fontSize={10}
-                  fill="var(--text-primary)"
-                >
-                  {id.slice(0, 8)}
-                </text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
+    <div className="w-full h-full min-h-[400px] border border-[var(--bg-border)]">
+      <Plot
+        data={plotData}
+        layout={{
+          mapbox: {
+            style: 'carto-darkmatter',
+            center: { lat: 21.0, lon: 78.0 },
+            zoom: 3.5,
+          },
+          margin: { l: 0, r: 0, b: 0, t: 0 },
+          paper_bgcolor: '#0A0C0F', // Matches --bg-base
+          plot_bgcolor: '#0A0C0F',
+          showlegend: false,
+          dragmode: false,
+        }}
+        config={{
+          displayModeBar: false,
+          scrollZoom: false,
+        }}
+        useResizeHandler={true}
+        style={{ width: '100%', height: '100%' }}
+        onHover={(e) => {
+          if (e.points && e.points[0].text) {
+            onHighlight(e.points[0].text as string);
+          }
+        }}
+        onUnhover={() => onHighlight(null)}
+      />
     </div>
   );
 }

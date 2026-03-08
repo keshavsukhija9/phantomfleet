@@ -1,60 +1,45 @@
-/* Phantom Fleet — Premium SaaS design system (light theme, no purple) */
+/* Phantom Fleet — Industrial SaaS Design System */
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
 :root {
-  /* Backgrounds */
-  --bg-base: #ffffff;
-  --bg-surface: #f8f9fa;
-  --bg-panel: #ffffff;
-  --bg-hover: #f1f3f5;
+  /* Color System */
+  --bg-base: #0A0C0F;
+  --bg-surface: #111318;
+  --bg-elevated: #1A1D24;
+  --bg-border: #1F2330;
 
-  /* Borders */
-  --border-subtle: #e9ecef;
-  --border-default: #dee2e6;
+  --text-primary: #E8EAF0;
+  --text-secondary: #7A8099;
+  --text-muted: #3D4255;
 
-  /* Text */
-  --text-primary: #212529;
-  --text-secondary: #6c757d;
-  --text-muted: #868e96;
+  --accent-primary: #00C2FF;
+  --accent-success: #00E096;
+  --accent-warning: #FFB020;
+  --accent-danger: #FF4444;
 
-  /* Semantic */
-  --accent-critical: #dc3545;
-  --accent-warning: #fd7e14;
-  --accent-success: #198754;
-  --accent-info: #0d6efd;
-
-  /* Spacing scale (px) */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-8: 48px;
+  --accent-primary-dim: rgba(0, 194, 255, 0.12);
+  --accent-success-dim: rgba(0, 224, 150, 0.12);
+  --accent-warning-dim: rgba(255, 176, 32, 0.12);
+  --accent-danger-dim: rgba(255, 68, 68, 0.12);
 
   /* Typography */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.25rem;
-  --text-2xl: 1.5rem;
-
-  /* Motion */
-  --transition-fast: 150ms ease;
-  --transition-normal: 200ms ease;
+  --font-display: 'IBM Plex Mono', monospace;
+  --font-body: 'DM Sans', sans-serif;
+  --font-data: 'JetBrains Mono', monospace;
 }
 
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-base);
-  line-height: 1.5;
-  color: var(--text-primary);
   background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -62,24 +47,187 @@ body {
 #root {
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
 }
 
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-border);
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}
+
+/* Universal Button Styles */
 button {
-  font-family: inherit;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-radius: 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
   cursor: pointer;
+  transition: all 120ms ease;
+  box-shadow: none !important;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+button:hover {
+  filter: brightness(1.15);
+}
+
+button:active {
+  filter: brightness(0.85);
 }
 
 button:focus-visible {
-  outline: 2px solid var(--accent-info);
+  outline: 1px solid var(--accent-primary);
   outline-offset: 2px;
 }
 
-a {
-  color: var(--accent-info);
-  text-decoration: none;
+/* Universal Input Styles */
+input,
+select,
+textarea {
+  background: var(--bg-elevated);
+  border: 1px solid var(--bg-border);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  border-radius: 0;
+  padding: 8px 12px;
+  transition: border-color 120ms ease;
 }
 
-a:hover {
-  text-decoration: underline;
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border: 1px solid var(--accent-primary);
+  box-shadow: none;
+}
+
+input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Animations */
+@keyframes risk-pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+
+  to {
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+}
+
+@keyframes card-collapse {
+  from {
+    max-height: 400px;
+    opacity: 1;
+  }
+
+  to {
+    max-height: 0;
+    opacity: 0;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    border-width: 0;
+  }
+}
+
+@keyframes type-in {
+  from {
+    width: 0;
+  }
+
+  to {
+    width: 100%;
+  }
+}
+
+/* Layout Utilities */
+.fade-enter {
+  animation: fade-in 200ms ease forwards;
+}
+
+.fade-exit {
+  animation: fade-out 150ms ease forwards;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+/* Skeletons */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-elevated), var(--bg-border), var(--bg-elevated));
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: 2px;
 }
