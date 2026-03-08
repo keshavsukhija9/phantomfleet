@@ -34,7 +34,7 @@ export function NetworkMap({ shipments, onHighlight }: NetworkMapProps) {
         mode: 'lines',
         lat: [origin.lat, dest.lat],
         lon: [origin.lon, dest.lon],
-        line: { width: 2, color: 'rgba(0, 194, 255, 0.6)' }, // --accent-primary
+        line: { width: 2, color: 'rgba(234, 88, 12, 0.8)' },
         hoverinfo: 'none',
         showlegend: false,
       });
@@ -50,12 +50,12 @@ export function NetworkMap({ shipments, onHighlight }: NetworkMapProps) {
         lon: atRisk.map(s => (LOCATIONS[s.origin] || LOCATIONS['W1']).lon),
         text: atRisk.map(s => s.id),
         textposition: 'top center',
-        textfont: { family: 'IBM Plex Mono', size: 10, color: '#E8EAF0' },
+        textfont: { family: 'Inter', size: 10, color: '#fff' },
         marker: {
           symbol: 'circle',
           size: atRisk.map(s => Math.max(8, (s.failure_prob || 0.5) * 20)),
-          color: atRisk.map(s => s.status === 'FAILED' ? '#FF4444' : '#FFB020'), // danger / warning
-          opacity: 0.8,
+          color: atRisk.map(s => s.status === 'FAILED' ? '#ef4444' : '#f97316'),
+          opacity: 0.95,
         },
         hoverinfo: 'text',
         hovertext: atRisk.map(s => `${s.id} - Prob: ${((s.failure_prob || 0) * 100).toFixed(1)}%`),
@@ -74,11 +74,11 @@ export function NetworkMap({ shipments, onHighlight }: NetworkMapProps) {
       lon: nodeLons,
       text: Object.keys(LOCATIONS),
       textposition: 'bottom right',
-      textfont: { family: 'IBM Plex Mono', size: 10, color: '#7A8099' },
+      textfont: { family: 'Inter', size: 10, color: 'rgba(255,255,255,0.8)' },
       marker: {
         symbol: 'square',
         size: 8,
-        color: '#00C2FF', // cyan squares
+        color: '#ea580c',
       },
       hoverinfo: 'none',
       showlegend: false,
@@ -88,7 +88,7 @@ export function NetworkMap({ shipments, onHighlight }: NetworkMapProps) {
   }, [shipments]);
 
   return (
-    <div className="w-full h-full min-h-[400px] border border-[var(--bg-border)]">
+    <div className="w-full h-full min-h-[400px] rounded-b-lg overflow-hidden">
       <Plot
         data={plotData}
         layout={{
@@ -98,8 +98,8 @@ export function NetworkMap({ shipments, onHighlight }: NetworkMapProps) {
             zoom: 3.5,
           },
           margin: { l: 0, r: 0, b: 0, t: 0 },
-          paper_bgcolor: '#0A0C0F', // Matches --bg-base
-          plot_bgcolor: '#0A0C0F',
+          paper_bgcolor: '#161d26',
+          plot_bgcolor: '#161d26',
           showlegend: false,
           dragmode: false,
         }}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { motion } from 'motion/react';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
 import type { Shipment } from '../types';
 
@@ -67,38 +68,44 @@ export function RiskMonitor({ shipments, activeAtRisk, onHighlight }: RiskMonito
   };
 
   const getSortIcon = (key: SortKey) => {
-    if (sortKey !== key) return <ArrowUpDown size={12} className="opacity-30" />;
-    return sortDir === 'asc' ? <ArrowUp size={12} className="text-[var(--accent-primary)]" /> : <ArrowDown size={12} className="text-[var(--accent-primary)]" />;
+    if (sortKey !== key) return <ArrowUpDown size={12} className="opacity-40" />;
+    return sortDir === 'asc' ? <ArrowUp size={12} className="text-[var(--accent)]" /> : <ArrowDown size={12} className="text-[var(--accent)]" />;
   };
 
   const renderStatus = (status: string) => {
-    switch (status) {
-      case 'HEALTHY': return <span className="text-[var(--text-muted)] border border-[var(--text-muted)] px-2 py-0.5 rounded-sm bg-transparent font-['IBM_Plex_Mono'] text-[9px] uppercase tracking-wider">HEALTHY</span>;
-      case 'AT_RISK': return <span className="text-[var(--accent-warning)] border border-[var(--accent-warning)] bg-[var(--accent-warning-dim)] px-2 py-0.5 rounded-sm font-['IBM_Plex_Mono'] text-[9px] uppercase tracking-wider shadow-[0_0_8px_var(--accent-warning-dim)]">AT RISK</span>;
-      case 'RESCUED': return <span className="text-[var(--accent-success)] border border-[var(--accent-success)] bg-[var(--accent-success-dim)] px-2 py-0.5 rounded-sm font-['IBM_Plex_Mono'] text-[9px] uppercase tracking-wider shadow-[0_0_8px_var(--accent-success-dim)]">RESCUED</span>;
-      case 'FAILED': return <span className="text-[var(--accent-danger)] border border-[var(--accent-danger)] bg-[var(--accent-danger-dim)] px-2 py-0.5 rounded-sm font-['IBM_Plex_Mono'] text-[9px] uppercase tracking-wider shadow-[0_0_8px_var(--accent-danger-dim)]">FAILED</span>;
-      default: return status;
-    }
+    const styles: Record<string, string> = {
+      HEALTHY: 'text-[var(--text-muted)] border border-[var(--text-muted)] bg-transparent',
+      AT_RISK: 'text-[var(--warning)] border border-[var(--warning)] bg-[var(--warning-bg)]',
+      RESCUED: 'text-[var(--success)] border border-[var(--success)] bg-[var(--success-bg)]',
+      FAILED: 'text-[var(--danger)] border border-[var(--danger)] bg-[var(--danger-bg)]',
+    };
+    return (
+      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${styles[status] || ''}`}>
+        {status.replace(/_/g, ' ')}
+      </span>
+    );
   };
 
   return (
-    <div className="flex flex-col h-full h-screen-main border border-[var(--bg-border)] bg-[var(--bg-base)]">
-
-      {/* Header & Filter */}
-      <div className="p-4 border-b border-[var(--bg-border)] bg-[var(--bg-surface)] flex justify-between items-center shrink-0">
+    <motion.div
+      initial={{ y: 20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className="card flex flex-col h-full overflow-hidden"
+    >
+      <div className="p-5 border-b border-[var(--border)] flex flex-wrap justify-between items-center gap-4 shrink-0">
         <div>
-          <h1 className="font-['IBM_Plex_Mono'] text-lg font-bold tracking-wider text-[var(--text-primary)]">RISK FEED</h1>
-          <p className="text-[11px] text-[var(--text-secondary)] font-['DM_Sans']">Tracking {filteredAndSorted.length} shipments</p>
+          <h1 className="text-lg font-semibold text-[var(--text-primary)]">Risk feed</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-0.5">{filteredAndSorted.length} shipments</p>
         </div>
-
-        <div className="relative w-64">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+        <div className="relative w-56 sm:w-64">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
           <input
             type="text"
-            placeholder="Filter by Carrier, Status, Priority..."
+            placeholder="Filter by carrier, status…"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
-            className="w-full bg-[var(--bg-elevated)] border border-[var(--bg-border)] focus:border-[var(--accent-primary)] text-xs py-2 pl-9 pr-3 outline-none text-[var(--text-primary)] placeholder-[var(--text-muted)] transition-colors"
+            className="w-full bg-[var(--bg-elevated)] border border-[var(--border)] rounded-[var(--radius-btn)] focus:border-[var(--accent)] text-sm py-2 pl-9 pr-3 outline-none text-[var(--text-primary)] placeholder-[var(--text-muted)] transition-colors"
           />
         </div>
       </div>
@@ -106,20 +113,20 @@ export function RiskMonitor({ shipments, activeAtRisk, onHighlight }: RiskMonito
       {/* Table Container */}
       <div className="flex-1 overflow-auto relative">
         <table className="w-full text-left border-collapse whitespace-nowrap">
-          <thead className="sticky top-0 z-10 bg-[var(--bg-elevated)] border-b border-[var(--bg-border)] shadow-sm">
+          <thead className="sticky top-0 z-10 bg-[var(--bg-elevated)] border-b border-[var(--border)]">
             <tr>
               {[
                 { key: 'id', label: 'ID' },
-                { key: 'carrier', label: 'CARRIER' },
-                { key: 'priority', label: 'PRIORITY' },
-                { key: 'eta_drift_pct', label: 'ETA DRIFT' },
-                { key: 'carrier_reliability', label: 'RELIABILITY' },
-                { key: 'warehouse_pressure', label: 'WH PRESSURE' },
-                { key: 'weather_risk', label: 'WEATHER' },
-                { key: 'failure_prob', label: 'FAILURE PROB' },
-                { key: 'status', label: 'STATUS' }
+                { key: 'carrier', label: 'Carrier' },
+                { key: 'priority', label: 'Priority' },
+                { key: 'eta_drift_pct', label: 'ETA drift' },
+                { key: 'carrier_reliability', label: 'Reliability' },
+                { key: 'warehouse_pressure', label: 'WH pressure' },
+                { key: 'weather_risk', label: 'Weather' },
+                { key: 'failure_prob', label: 'Failure %' },
+                { key: 'status', label: 'Status' }
               ].map(({ key, label }) => (
-                <th key={key} className="py-3 px-4 font-['IBM_Plex_Mono'] text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-semibold cursor-pointer hover:text-[var(--text-primary)] transition-colors" onClick={() => toggleSort(key as SortKey)}>
+                <th key={key} className="py-3 px-4 text-xs font-semibold text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors" onClick={() => toggleSort(key as SortKey)}>
                   <div className="flex items-center gap-1.5">
                     {label}
                     {getSortIcon(key as SortKey)}
@@ -131,8 +138,8 @@ export function RiskMonitor({ shipments, activeAtRisk, onHighlight }: RiskMonito
           <tbody>
             {filteredAndSorted.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-12 text-center text-[var(--text-muted)] font-['IBM_Plex_Mono'] text-sm uppercase">
-                  No matching shipments found
+                <td colSpan={9} className="py-12 text-center text-[var(--text-muted)] font-[var(--font-sans)] text-sm uppercase">
+                  No matching shipments
                 </td>
               </tr>
             ) : (
@@ -141,51 +148,51 @@ export function RiskMonitor({ shipments, activeAtRisk, onHighlight }: RiskMonito
                 let bgClass = isEven ? 'bg-[var(--bg-base)]' : 'bg-[var(--bg-surface)]';
 
                 let borderLeftClass = 'border-l-[3px] border-transparent';
-                if (s.status === 'AT_RISK') borderLeftClass = 'border-l-[3px] border-[var(--accent-warning)]';
-                else if (s.status === 'RESCUED') borderLeftClass = 'border-l-[3px] border-[var(--accent-success)]';
+                if (s.status === 'AT_RISK') borderLeftClass = 'border-l-[3px] border-[var(--warning)]';
+                else if (s.status === 'RESCUED') borderLeftClass = 'border-l-[3px] border-[var(--success)]';
 
                 const failureProb = s.failure_prob ?? 0;
                 let probColor = 'var(--text-muted)';
-                if (failureProb >= 0.75) probColor = 'var(--accent-danger)';
-                else if (failureProb >= 0.5) probColor = 'var(--accent-warning)';
+                if (failureProb >= 0.75) probColor = 'var(--danger)';
+                else if (failureProb >= 0.5) probColor = 'var(--warning)';
 
                 return (
                   <tr
                     key={s.id}
-                    className={`${bgClass} border-b border-[var(--bg-border)] hover:bg-[var(--bg-elevated)] transition-colors duration-150 group`}
+                    className={`${bgClass} border-b border-[var(--border)] hover:bg-[var(--bg-elevated)] transition-colors duration-150 group`}
                     onMouseEnter={() => onHighlight(s.id)}
                     onMouseLeave={() => onHighlight(null)}
                   >
-                    <td className={`py-3 px-4 ${borderLeftClass} font-['IBM_Plex_Mono'] font-bold text-[13px] ${activeAtRisk.includes(s.id) ? 'text-[var(--accent-warning)]' : 'text-[var(--text-primary)]'}`}>
+                    <td className={`py-3 px-4 ${borderLeftClass} font-semibold text-sm ${activeAtRisk.includes(s.id) ? 'text-[var(--warning)]' : 'text-[var(--text-primary)]'}`}>
                       {s.id}
                     </td>
-                    <td className="py-3 px-4 font-['IBM_Plex_Mono'] text-xs text-[var(--text-secondary)]">
+                    <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
                       {s.carrier}
                     </td>
-                    <td className="py-3 px-4 font-['IBM_Plex_Mono'] text-xs">
-                      <span style={{ color: s.priority === 'CRITICAL' ? 'var(--accent-danger)' : s.priority === 'HIGH' ? 'var(--accent-warning)' : 'var(--text-muted)' }}>
+                    <td className="py-3 px-4 text-sm">
+                      <span style={{ color: s.priority === 'CRITICAL' ? 'var(--danger)' : s.priority === 'HIGH' ? 'var(--warning)' : 'var(--text-muted)' }}>
                         {s.priority}
                       </span>
                     </td>
-                    <td className="py-3 px-4 font-['JetBrains_Mono'] text-xs text-[var(--text-primary)]">
+                    <td className="py-3 px-4 text-sm tabular-nums text-[var(--text-primary)]">
                       {s.eta_drift_pct != null ? `${s.eta_drift_pct.toFixed(1)}%` : '-'}
                     </td>
-                    <td className="py-3 px-4 font-['JetBrains_Mono'] text-xs text-[var(--text-primary)]">
+                    <td className="py-3 px-4 text-sm tabular-nums text-[var(--text-primary)]">
                       {s.carrier_reliability?.toFixed(2) ?? '-'}
                     </td>
-                    <td className="py-3 px-4 font-['JetBrains_Mono'] text-xs text-[var(--text-primary)]">
+                    <td className="py-3 px-4 text-sm tabular-nums text-[var(--text-primary)]">
                       {s.warehouse_pressure?.toFixed(2) ?? '-'}
                     </td>
-                    <td className="py-3 px-4 font-['JetBrains_Mono'] text-xs text-[var(--text-primary)]">
+                    <td className="py-3 px-4 text-sm tabular-nums text-[var(--text-primary)]">
                       {s.weather_risk?.toFixed(2) ?? '-'}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3 w-32">
-                        <span className="font-['JetBrains_Mono'] text-[11px] w-10 text-right" style={{ color: probColor }}>
+                        <span className="text-xs font-semibold w-10 text-right tabular-nums" style={{ color: probColor }}>
                           {(failureProb * 100).toFixed(1)}%
                         </span>
-                        <div className="h-1 flex-1 bg-[var(--bg-border)]">
-                          <div className="h-full transition-all duration-300" style={{ width: `${failureProb * 100}%`, backgroundColor: probColor }} />
+                        <div className="h-1 flex-1 bg-[var(--border)] rounded-full overflow-hidden">
+                          <div className="h-full transition-all duration-300 rounded-full" style={{ width: `${failureProb * 100}%`, backgroundColor: probColor }} />
                         </div>
                       </div>
                     </td>
@@ -199,6 +206,6 @@ export function RiskMonitor({ shipments, activeAtRisk, onHighlight }: RiskMonito
           </tbody>
         </table>
       </div>
-    </div>
+    </motion.div>
   );
 }

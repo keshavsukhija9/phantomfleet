@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'motion/react';
 import { fetchState, runTick, approveIntervention, streamUrl } from './api';
 import type { AgentState } from './types';
+import { LandingPage } from './components/LandingPage';
+import { CommandHeader } from './components/CommandHeader';
 import { Sidebar, type ViewId } from './components/Sidebar';
 import { Overview } from './components/Overview';
 import { RiskMonitor } from './components/RiskMonitor';
@@ -8,27 +11,21 @@ import { AIReasoning } from './components/AIReasoning';
 import { Interventions } from './components/Interventions';
 import { Learning } from './components/Learning';
 
-const defaultState: AgentState = {
-  shipments: {},
-  interventions: {},
-  risk_map: {},
-  pending_approvals: [],
-  tick: 0,
-  episode_count: 0,
-  calibration_boost: {},
-  active_at_risk: [],
-  causal_map: {},
-  shap_map: {},
-  stored_episodes: [],
-};
+const STORAGE_KEY = 'phantom-fleet-entered';
 
 export default function App() {
-  const [state, setState] = useState<AgentState>(defaultState);
+  const [entered, setEntered] = useState(() => typeof window !== 'undefined' && sessionStorage.getItem(STORAGE_KEY) === '1');
+  const [state, setState] = useState<AgentState | null>(null);
   const [view, setView] = useState<ViewId>('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoRun, setAutoRun] = useState(false);
   const [approveLoadingId, setApproveLoadingId] = useState<string | null>(null);
+
+  const enterDashboard = useCallback(() => {
+    sessionStorage.setItem(STORAGE_KEY, '1');
+    setEntered(true);
+  }, []);
 
   const loadState = useCallback(async () => {
     try {
@@ -62,6 +59,22 @@ export default function App() {
     return () => es.close();
   }, [autoRun]);
 
+  if (!entered) {
+    return <LandingPage onEnterDashboard={enterDashboard} />;
+  }
+
+  if (!state) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[var(--bg-base)]">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          className="w-12 h-12 border-2 border-[var(--accent)] border-t-transparent rounded-full"
+        />
+      </div>
+    );
+  }
+
   const handleRunTick = async () => {
     setLoading(true);
     setError(null);
@@ -90,33 +103,36 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-[var(--bg-base)] text-[var(--text-primary)]">
-      {/* 220px Fixed Sidebar */}
-      <Sidebar
-        currentView={view}
-        onNavigate={setView}
-        state={state}
-        autoRun={autoRun}
-        onToggleAutoRun={() => setAutoRun(v => !v)}
-        onRunTick={handleRunTick}
-        isLoading={loading}
-      />
-
-      {/* Main Content Area (Fluid) */}
-      <main className="flex-1 ml-[220px] p-8 flex flex-col relative overflow-hidden transition-opacity duration-200">
-
-        {/* Skeleton Shimmer during long compute */}
-        {loading && (
-          <div className="absolute top-0 left-0 right-0 h-1 skeleton z-[100]" />
-        )}
-
-        {error && (
-          <div className="bg-[var(--accent-danger-dim)] border border-[var(--accent-danger)] text-[var(--accent-danger)] p-4 mb-6 font-['IBM_Plex_Mono'] text-sm tracking-wide">
-            SYSTEM ERR: {error}
-          </div>
-        )}
-
-        {/* View Routing */}
-        <div key={view} className="fade-enter h-full flex flex-col">
+      <Sidebar currentView={view} onNavigate={setView} state={state} />
+      <div className="relative z-10 flex-1 flex flex-col min-h-0 ml-[260px]">
+        <CommandHeader
+          state={state}
+          autoRun={autoRun}
+          onToggleAutoRun={() => setAutoRun(v => !v)}
+          onRunTick={handleRunTick}
+          isLoading={loading}
+          currentView={view}
+        />
+        <main className="flex-1 p-6 pb-8 flex flex-col min-h-0">
+          {loading && (
+            <div className="absolute top-0 left-[260px] right-0 h-0.5 skeleton z-[100]" />
+          )}
+          {error && (
+            <motion.div
+              initial={{ y: -8, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="bg-[var(--danger-bg)] border border-[var(--danger)] text-[var(--danger)] p-4 mb-6 rounded-[var(--radius-lg)] font-medium text-sm"
+            >
+              {error}
+            </motion.div>
+          )}
+          <motion.div
+            key={view}
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="h-full flex flex-col"
+          >
           {view === 'overview' && (
             <Overview
               state={state}
@@ -157,9 +173,9 @@ export default function App() {
               storedEpisodes={state.stored_episodes}
             />
           )}
-        </div>
-
-      </main>
+          </motion.div>
+        </main>
+      </div>
     </div>
   );
 }

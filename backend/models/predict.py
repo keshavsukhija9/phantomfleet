@@ -23,9 +23,13 @@ if not os.path.exists(model_path):
 with open(model_path, "rb") as f:
     MODEL = pickle.load(f)
 
-# Initialize SHAP explainer (CPU only - GPU version doesn't exist in SHAP)
-EXPLAINER = shap.TreeExplainer(MODEL)
-print("Using SHAP TreeExplainer (CPU)")
+# Initialize SHAP explainer if compatible (XGBoost version can affect this)
+EXPLAINER = None
+try:
+    EXPLAINER = shap.TreeExplainer(MODEL)
+    print("Using SHAP TreeExplainer (CPU)")
+except Exception as e:
+    print(f"SHAP explainer unavailable: {e}. Predictions will work without SHAP values.")
 
 
 def predict(shipment_dict: dict) -> tuple:
@@ -43,6 +47,9 @@ def predict(shipment_dict: dict) -> tuple:
     
     # Get prediction probability
     prob = float(MODEL.predict_proba(row)[0][1])
+    
+    if EXPLAINER is None:
+        return prob, {}
     
     # Get SHAP values
     sv = EXPLAINER.shap_values(row)

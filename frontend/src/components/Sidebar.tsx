@@ -1,122 +1,86 @@
+import { motion } from 'motion/react';
 import {
-  Activity,
+  LayoutDashboard,
   AlertTriangle,
-  BrainCircuit,
   Zap,
-  BookOpen,
-  Play,
-  Square,
-  FastForward
+  BrainCircuit,
+  Database,
 } from 'lucide-react';
 import type { AgentState } from '../types';
 
 export type ViewId = 'overview' | 'risk' | 'interventions' | 'reasoning' | 'learning';
 
 const NAV: { id: ViewId; label: string; icon: React.ReactNode }[] = [
-  { id: 'overview', label: 'Overview', icon: <Activity size={16} /> },
-  { id: 'risk', label: 'Risk Feed', icon: <AlertTriangle size={16} /> },
-  { id: 'interventions', label: 'Interventions', icon: <Zap size={16} /> },
-  { id: 'reasoning', label: 'Agent Reasoning', icon: <BrainCircuit size={16} /> },
-  { id: 'learning', label: 'Learning Memory', icon: <BookOpen size={16} /> },
+  { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={18} strokeWidth={2} /> },
+  { id: 'risk', label: 'Risk Feed', icon: <AlertTriangle size={18} strokeWidth={2} /> },
+  { id: 'interventions', label: 'Interventions', icon: <Zap size={18} strokeWidth={2} /> },
+  { id: 'reasoning', label: 'Reasoning', icon: <BrainCircuit size={18} strokeWidth={2} /> },
+  { id: 'learning', label: 'Learning', icon: <Database size={18} strokeWidth={2} /> },
 ];
 
 interface SidebarProps {
   currentView: ViewId;
   onNavigate: (view: ViewId) => void;
   state: AgentState;
-
-  // Controls
-  autoRun: boolean;
-  onToggleAutoRun: () => void;
-  onRunTick: () => void;
-  isLoading: boolean;
 }
 
-export function Sidebar({ currentView, onNavigate, state, autoRun, onToggleAutoRun, onRunTick, isLoading }: SidebarProps) {
-  const isRunning = autoRun || isLoading;
-  const llmStatusColor = state.active_at_risk.length > 0 ? "var(--accent-primary)" : "var(--accent-success)";
-
+export function Sidebar({ currentView, onNavigate, state }: SidebarProps) {
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[220px] bg-[var(--bg-surface)] border-r border-[var(--bg-border)] flex flex-col pt-6 pb-4 z-50">
-
-      {/* Logo Area */}
-      <div className="flex items-center gap-3 px-5 mb-10">
-        <div className="w-8 h-8 flex items-center justify-center bg-[var(--accent-primary)] text-black font-['IBM_Plex_Mono'] font-bold text-sm">
+    <aside className="fixed left-0 top-0 h-screen w-[260px] flex flex-col z-50 border-r border-[var(--border)] bg-[var(--bg-surface)]">
+      <div className="flex items-center gap-3 px-5 py-6 border-b border-[var(--border)]">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent)] text-white font-semibold text-sm">
           PF
         </div>
-        <div className="text-[var(--text-primary)] font-['IBM_Plex_Mono'] font-bold text-[11px] tracking-[0.15em] leading-tight">
-          PHANTOM<br />FLEET
+        <div>
+          <div className="font-semibold text-sm tracking-tight text-[var(--text-primary)]">
+            Phantom Fleet
+          </div>
+          <div className="text-[10px] font-medium uppercase tracking-widest text-[var(--text-muted)]">
+            V3.0 Intelligence
+          </div>
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1">
-        <ul className="flex flex-col gap-1">
+      <nav className="flex-1 px-3 py-4">
+        <ul className="space-y-0.5">
           {NAV.map(({ id, label, icon }) => {
             const isActive = currentView === id;
             return (
               <li key={id}>
-                <button
+                <motion.button
                   type="button"
                   onClick={() => onNavigate(id)}
-                  className={`w-full flex items-center gap-3 px-5 py-2.5 text-xs text-left transition-colors font-['IBM_Plex_Mono'] uppercase tracking-[0.08em] hover:bg-[var(--bg-border)] ${isActive
-                    ? 'bg-[var(--accent-primary-dim)] text-[var(--accent-primary)] border-l-2 border-[var(--accent-primary)]'
-                    : 'text-[var(--text-secondary)] border-l-2 border-transparent'
-                    }`}
+                  initial={false}
+                  whileHover={{ x: 2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-[var(--accent-bg)] text-[var(--accent)]'
+                      : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
+                  }`}
                 >
-                  <span className={`${isActive ? 'text-[var(--accent-primary)]' : 'text-[var(--text-secondary)]'}`}>
+                  <span className={isActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}>
                     {icon}
                   </span>
                   {label}
-                </button>
+                </motion.button>
               </li>
             );
           })}
         </ul>
       </nav>
 
-      {/* Controls Area */}
-      <div className="px-5 mb-6 flex flex-col gap-2">
-        <div className="flex gap-2">
-          <button
-            onClick={onRunTick}
-            disabled={isRunning}
-            className="flex-1 flex items-center justify-center gap-2 bg-[var(--bg-elevated)] border border-[var(--bg-border)] text-[var(--text-primary)] py-2 hover:border-[var(--accent-primary)] disabled:opacity-50"
-          >
-            <FastForward size={14} /> Tick
-          </button>
-          <button
-            onClick={onToggleAutoRun}
-            className={`flex-1 flex items-center justify-center gap-2 border py-2 ${autoRun
-              ? 'bg-[var(--accent-warning-dim)] border-[var(--accent-warning)] text-[var(--accent-warning)]'
-              : 'bg-[var(--bg-elevated)] border-[var(--bg-border)] text-[var(--text-primary)] hover:border-[var(--accent-primary)]'
-              }`}
-          >
-            {autoRun ? <Square size={14} /> : <Play size={14} />} Auto
-          </button>
+      <div className="px-4 py-4 border-t border-[var(--border)]">
+        <div className="rounded-lg bg-[var(--bg-elevated)] px-3 py-2.5">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--text-muted)] mb-2">
+            Status
+          </div>
+          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+            <div className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
+            <span>Memory {state.episode_count} episodes</span>
+          </div>
         </div>
       </div>
-
-      {/* System Status */}
-      <div className="px-5 border-t border-[var(--bg-border)] pt-4 flex flex-col gap-2 font-['IBM_Plex_Mono'] text-[10px] text-[var(--text-secondary)] uppercase">
-        <div className="text-[var(--text-muted)] mb-1 tracking-widest">System Status</div>
-
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${isRunning ? 'animate-pulse bg-[var(--accent-warning)]' : 'bg-[var(--accent-success)]'}`} />
-          <span>Agent: {isRunning ? 'RUNNING' : 'IDLE'}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[var(--accent-success)]" style={{ backgroundColor: llmStatusColor }} />
-          <span>LLM: CONNECTED</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[var(--accent-primary)]" />
-          <span>Memory: {state.episode_count} eps</span>
-        </div>
-      </div>
-
     </aside>
   );
 }
