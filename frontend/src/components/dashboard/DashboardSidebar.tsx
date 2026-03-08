@@ -20,28 +20,26 @@ export function DashboardSidebar({ currentTab, onNavigate, state }: DashboardSid
 
   return (
     <aside
-      className="flex flex-col w-[220px] bg-[var(--navy-900)] border-r border-white/[0.06] overflow-hidden shrink-0"
+      className="flex flex-col w-[200px] bg-[var(--navy-900)] border-r border-white/[0.05] overflow-hidden shrink-0"
       style={{ fontFamily: 'var(--font)' }}
     >
-      <div className="flex items-center gap-2 px-4 h-[54px] border-b border-white/[0.06] shrink-0">
-        <div className="w-[26px] h-[26px] rounded-[6px] bg-[var(--blue)] flex items-center justify-center shrink-0">
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 px-4 h-[54px] border-b border-white/[0.05] shrink-0">
+        <div className="w-[28px] h-[28px] rounded-[8px] bg-gradient-to-br from-[var(--blue)] to-[#c2410c] flex items-center justify-center shrink-0">
           <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
             <polygon points="8,1 14,4.5 14,11.5 8,15 2,11.5 2,4.5" stroke="white" strokeWidth="1.5" fill="none" />
             <circle cx="8" cy="8" r="2" fill="white" />
           </svg>
         </div>
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col">
           <div className="text-[13px] font-bold text-white tracking-tight leading-tight">Phantom Fleet</div>
-          <div className="text-[9px] text-white/30 tracking-wider uppercase font-mono">Ops Intelligence</div>
-        </div>
-        <div className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--green)]/10 border border-[var(--green)]/20">
-          <div className="w-1.5 h-1.5 rounded-full bg-[var(--green)] animate-pulse" style={{ boxShadow: '0 0 0 2px rgba(34,197,94,0.3)' }} />
-          <span className="text-[9px] font-mono font-semibold text-[var(--green)] tracking-wider uppercase">Live</span>
+          <div className="text-[9px] text-white/25 tracking-widest uppercase font-mono">Ops Intelligence</div>
         </div>
       </div>
 
-      <nav className="flex-1 py-2 px-2 overflow-y-auto flex flex-col gap-px">
-        <div className="text-[10px] font-mono tracking-widest uppercase text-white/20 px-2 pt-2 pb-1">Workspace</div>
+      {/* Navigation */}
+      <nav className="flex-1 py-3 px-2.5 overflow-y-auto flex flex-col gap-0.5">
+        <div className="text-[9.5px] font-mono tracking-[0.1em] uppercase text-white/20 px-2 pt-1 pb-2">Workspace</div>
         {NAV.map(({ id, label }) => {
           const isActive = currentTab === id;
           return (
@@ -50,42 +48,47 @@ export function DashboardSidebar({ currentTab, onNavigate, state }: DashboardSid
               type="button"
               onClick={() => onNavigate(id)}
               className={`
-                flex items-center gap-2 px-2 py-1.5 rounded-md text-[12.5px] font-medium transition-all text-left
-                ${isActive ? 'bg-[var(--blue)]/12 text-white border border-[var(--blue)]/20' : 'text-white/50 hover:bg-white/5 hover:text-white/80 border border-transparent'}
+                flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all text-left w-full
+                ${isActive
+                  ? 'bg-[var(--blue)]/12 text-white border border-[var(--blue)]/20'
+                  : 'text-white/45 hover:bg-white/[0.04] hover:text-white/75 border border-transparent'}
               `}
             >
               <NavIcon id={id} active={isActive} />
               {label}
               {id === 'shipments' && atRiskCount > 0 && (
-                <span className="ml-auto text-[10px] font-mono font-semibold bg-[var(--red)]/20 text-[var(--red)] px-1.5 py-0.5 rounded-md border border-[var(--red)]/20 min-w-[18px] text-center">
+                <span className="ml-auto text-[10px] font-mono font-semibold bg-[var(--red)]/15 text-[var(--red)] px-1.5 py-0.5 rounded-md min-w-[18px] text-center">
                   {atRiskCount}
                 </span>
               )}
             </button>
           );
         })}
-        <div className="h-px bg-white/5 my-1.5 mx-2" />
-        <div className="text-[10px] font-mono tracking-widest uppercase text-white/20 px-2 pt-1 pb-1">Agent</div>
-        <button type="button" className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[12.5px] font-medium text-white/50 hover:bg-white/5 hover:text-white/80 transition-all text-left">
+
+        <div className="h-px bg-white/[0.04] my-2 mx-2" />
+        <div className="text-[9.5px] font-mono tracking-[0.1em] uppercase text-white/20 px-2 pt-1 pb-2">Agent</div>
+        <button type="button" className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium text-white/45 hover:bg-white/[0.04] hover:text-white/75 transition-all text-left w-full border border-transparent">
           <AgentGraphIcon />
           Agent Graph
         </button>
-        <button type="button" className="flex items-center gap-2 px-2 py-1.5 rounded-md text-[12.5px] font-medium text-white/50 hover:bg-white/5 hover:text-white/80 transition-all text-left">
+        <button type="button" className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium text-white/45 hover:bg-white/[0.04] hover:text-white/75 transition-all text-left w-full border border-transparent">
           <EventLogIcon />
           Event Log
         </button>
       </nav>
 
-      <div className="p-3 pt-2.5 border-t border-white/[0.06] shrink-0 flex flex-col gap-1.5">
+      {/* Footer */}
+      <div className="p-3 border-t border-white/[0.04] shrink-0 flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-mono text-white/25 tracking-widest uppercase">Agent</span>
-          <span className="text-[10px] font-mono font-semibold text-[var(--green)] flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--green)]" /> Online
+          <span className="text-[9.5px] font-mono text-white/20 tracking-[0.1em] uppercase">Agent</span>
+          <span className="text-[10px] font-mono font-semibold text-[var(--green)] flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--green)] animate-pulse" />
+            Online
           </span>
         </div>
-        <div className="flex items-center justify-between px-2 py-1.5 bg-white/5 border border-white/6 rounded-md">
-          <span className="text-[10px] font-mono text-white/30 uppercase tracking-wider">Tick</span>
-          <span className="text-[14px] font-bold text-white font-mono leading-none">{state.tick}</span>
+        <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03] border border-white/[0.05] rounded-lg">
+          <span className="text-[10px] font-mono text-white/25 uppercase tracking-wider">Tick</span>
+          <span className="text-[16px] font-bold text-white font-mono leading-none">{state.tick}</span>
         </div>
       </div>
     </aside>
@@ -93,7 +96,7 @@ export function DashboardSidebar({ currentTab, onNavigate, state }: DashboardSid
 }
 
 function NavIcon({ id, active }: { id: TabId; active: boolean }) {
-  const cls = `w-3.5 h-3.5 shrink-0 ${active ? 'opacity-100 text-[var(--blue-light)]' : 'opacity-55'}`;
+  const cls = `w-4 h-4 shrink-0 ${active ? 'opacity-100 text-[var(--blue-light)]' : 'opacity-50'}`;
   switch (id) {
     case 'overview':
       return (
@@ -133,7 +136,7 @@ function NavIcon({ id, active }: { id: TabId; active: boolean }) {
 
 function AgentGraphIcon() {
   return (
-    <svg className="w-3.5 h-3.5 shrink-0 opacity-55" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <svg className="w-4 h-4 shrink-0 opacity-50" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <circle cx="8" cy="4" r="2.5" />
       <circle cx="2" cy="12" r="2" />
       <circle cx="14" cy="12" r="2" />
@@ -145,7 +148,7 @@ function AgentGraphIcon() {
 
 function EventLogIcon() {
   return (
-    <svg className="w-3.5 h-3.5 shrink-0 opacity-55" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <svg className="w-4 h-4 shrink-0 opacity-50" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <rect x="1" y="3" width="14" height="10" rx="2" />
       <line x1="4" y1="7" x2="12" y2="7" />
       <line x1="4" y1="10" x2="9" y2="10" />

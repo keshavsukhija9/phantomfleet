@@ -10,7 +10,7 @@ interface RightPanelProps {
 
 export function RightPanel({ state, onApprove, loadingId }: RightPanelProps) {
   return (
-    <aside className="flex flex-col bg-[var(--surface)] border-l border-[var(--border)] overflow-hidden w-[340px] shrink-0">
+    <aside className="flex flex-col bg-[var(--surface)] border-l border-[var(--border)] overflow-hidden w-[360px] shrink-0">
       <ReasoningCard state={state} />
       <EscalationCards state={state} onApprove={onApprove} loadingId={loadingId} />
     </aside>

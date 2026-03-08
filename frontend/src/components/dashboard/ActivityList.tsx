@@ -1,7 +1,7 @@
 const ACTIVITIES = [
-  { type: 'observe', title: 'Tick processed — 50 shipments updated', meta: 'observe.py · SimulationEngine.step()', time: 'now', cls: 'bg-[#EFF6FF] text-[var(--blue)]' },
+  { type: 'observe', title: 'Tick processed — 50 shipments updated', meta: 'observe.py · SimulationEngine.step()', time: 'now', cls: 'bg-[var(--blue-glow)] text-[var(--blue)]' },
   { type: 'risk', title: '4 shipments flagged at risk', meta: 'XGBoost · threshold 0.75 · SHAP computed', time: '5s', cls: 'bg-[var(--red-bg)] text-[var(--red)]' },
-  { type: 'reason', title: 'Agent API — hypothesis for S042', meta: 'CARRIER_DEGRADATION · 91% confidence', time: '8s', cls: 'bg-[var(--blue-glow)] text-[var(--blue)]' },
+  { type: 'reason', title: 'Agent API — hypothesis for S042', meta: 'CARRIER_DEGRADATION · 91% confidence', time: '8s', cls: 'bg-[var(--amber-bg)] text-[var(--amber)]' },
   { type: 'rescue', title: 'S017 auto-rescued via W1→D1', meta: 'score 0.84 · +3.5h ETA · +2.1% cost', time: '9s', cls: 'bg-[var(--green-bg)] text-[var(--green)]' },
   { type: 'escalate', title: 'S042 escalated — CRITICAL priority', meta: 'Guardrail G3 failed · awaiting approval', time: '9s', cls: 'bg-[var(--amber-bg)] text-[var(--amber)]' },
   { type: 'learn', title: '3 episodes stored in ChromaDB', meta: 'C4 boost ×0.82 · C5 boost ×1.12', time: '10s', cls: 'bg-[var(--green-bg)] text-[var(--green)]' },
@@ -43,25 +43,29 @@ const ICONS: Record<string, React.ReactNode> = {
 export function ActivityList() {
   return (
     <div className="panel">
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-[var(--border)]">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border)]">
         <div className="text-[13px] font-semibold text-[var(--text-primary)] tracking-tight">Agent Activity</div>
-        <span className="text-[11.5px] font-medium text-[var(--blue)] cursor-pointer px-2 py-1 rounded-md hover:bg-[var(--blue-glow)] transition-colors">View all</span>
+        <span className="text-[11.5px] font-medium text-[var(--blue)] cursor-pointer px-2.5 py-1 rounded-lg hover:bg-[var(--blue-glow)] transition-colors">
+          View all
+        </span>
       </div>
-      <div className="max-h-[180px] overflow-y-auto py-1">
+      <div className="max-h-[200px] overflow-y-auto">
         {ACTIVITIES.map((a, i) => (
           <div
             key={i}
-            className="flex items-start gap-3 px-4 py-2.5 border-b border-[var(--border)] last:border-0 animate-[rowIn_0.3s_ease_forwards]"
+            className="flex items-start gap-3 px-5 py-3 border-b border-[var(--border)] last:border-0 animate-[rowIn_0.3s_ease_forwards]"
             style={{ animationDelay: `${i * 0.06}s` }}
           >
-            <div className={`w-[26px] h-[26px] rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${a.cls}`}>
+            <div className={`w-[28px] h-[28px] rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${a.cls}`}>
               {ICONS[a.type]}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[12.5px] font-medium text-[var(--text-primary)] tracking-tight truncate">{a.title}</div>
-              <div className="text-[11px] text-[var(--text-tertiary)] font-mono mt-0.5">{a.meta}</div>
+              <div className="text-[13px] font-medium text-[var(--text-primary)] tracking-tight truncate">
+                {a.title}
+              </div>
+              <div className="text-[11.5px] text-[var(--text-tertiary)] font-mono mt-0.5">{a.meta}</div>
             </div>
-            <div className="text-[10.5px] text-[var(--text-tertiary)] font-mono shrink-0 mt-0.5">{a.time}</div>
+            <div className="text-[11px] text-[var(--text-tertiary)] font-mono shrink-0 mt-1">{a.time}</div>
           </div>
         ))}
       </div>

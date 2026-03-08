@@ -11,6 +11,11 @@ export interface Shipment {
   status: string;
   failure_prob: number;
   intervention_id?: string;
+  // XGBoost feature fields (used by model for prediction)
+  handoff_margin_hours: number;
+  downstream_critical: number;
+  priority_score: number;
+  route_reliability: number;
 }
 
 export interface Intervention {
@@ -29,7 +34,10 @@ export interface Intervention {
 export interface CausalEntry {
   hypothesis?: string;
   primary_cause?: string;
+  contributing_factors?: string[];
   confidence?: number;
+  expected_failure_mode?: string;
+  evidence_citations?: string[];
 }
 
 export interface AgentState {

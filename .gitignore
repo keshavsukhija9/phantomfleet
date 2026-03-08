@@ -39,10 +39,18 @@ venv.bak/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Environment variables
+# Environment variables - NEVER COMMIT THESE!
 .env
 .env.local
 .env.*.local
+backend/.env
+backend/.env.local
+**/.env
+**/.env.local
+
+# But allow example files
+!.env.example
+!backend/.env.example
 
 # Model files (train locally)
 backend/models/model.pkl

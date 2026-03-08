@@ -3,8 +3,6 @@ import type { AgentState } from '../../types';
 import type { TabId } from './DashboardSidebar';
 import { DashboardSidebar } from './DashboardSidebar';
 import { Topbar } from './Topbar';
-import { TabStrip } from './TabStrip';
-import { Ticker } from './Ticker';
 import { KPIRow } from './KPIRow';
 import { OrdalStrip } from './OrdalStrip';
 import { MapRiskRow } from './MapRiskRow';
@@ -45,13 +43,11 @@ export function Dashboard({
           onRunTick={onRunTick}
           isLoading={isLoading}
         />
-        <TabStrip currentTab={tab} onTab={setTab} state={state} />
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
-          <Ticker />
+        <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
           <KPIRow state={state} />
           <OrdalStrip state={state} />
-          <MapRiskRow state={state} onHighlight={() => {}} />
+          <MapRiskRow state={state} onHighlight={() => { }} />
           <ActivityList />
 
           <div className={tab === 'learning' ? '' : 'panel-hidden'}>

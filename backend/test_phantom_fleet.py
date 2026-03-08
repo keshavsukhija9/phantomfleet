@@ -66,7 +66,7 @@ def section(title):
 # SECTION 1
 section("1. PROJECT STRUCTURE")
 REQUIRED_FILES = [
-    "app.py", "agent/__init__.py", "agent/graph.py", "agent/state.py",
+    "main.py", "agent/__init__.py", "agent/graph.py", "agent/state.py",
     "agent/nodes/observe.py", "agent/nodes/risk_assess.py",
     "agent/nodes/causal_reason.py", "agent/nodes/plan.py",
     "agent/nodes/act.py", "agent/nodes/learn.py",
@@ -262,8 +262,8 @@ check(".env exists", os.path.exists(".env") or os.path.exists("../.env"))
 # SECTION 12
 section("12. APP STRUCTURE")
 def test_app_exists():
-    # Check for either Streamlit app.py or app_streamlit.py
-    assert os.path.exists("../app.py") or os.path.exists("../app_streamlit.py") or os.path.exists("app.py"), "No app file found"
+    # Check for FastAPI main.py entry point
+    assert os.path.exists("main.py"), "No main.py (FastAPI entry point) found"
 try_check("app file exists", test_app_exists)
 
 # SECTION 13

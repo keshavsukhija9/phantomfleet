@@ -26,13 +26,18 @@ export function TabStrip({ currentTab, onTab, state }: TabStripProps) {
             type="button"
             onClick={() => onTab(id)}
             className={`
-              flex items-center gap-1.5 px-3.5 py-3 text-[12.5px] font-medium border-b-2 transition-all
-              ${isActive ? 'text-[var(--text-primary)] border-[var(--navy-900)] font-semibold' : 'text-[var(--text-secondary)] border-transparent hover:text-[var(--text-primary)]'}
+              flex items-center gap-1.5 px-4 py-3 text-[13px] font-medium border-b-2 transition-all
+              ${isActive
+                ? 'text-[var(--text-primary)] border-[var(--blue)] font-semibold'
+                : 'text-[var(--text-tertiary)] border-transparent hover:text-[var(--text-secondary)]'}
             `}
           >
             {label}
             {count != null && (
-              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md font-mono ${isActive ? 'bg-[var(--navy-900)] text-white' : 'bg-[var(--surface-3)] text-[var(--text-secondary)]'}`}>
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md font-mono ${isActive
+                  ? 'bg-[var(--blue)]/15 text-[var(--blue)]'
+                  : 'bg-[var(--surface-3)] text-[var(--text-tertiary)]'
+                }`}>
                 {count}
               </span>
             )}

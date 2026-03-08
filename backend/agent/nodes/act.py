@@ -40,7 +40,10 @@ def run(state: AgentState) -> AgentState:
         
         if all(guardrails):
             inv["execution"] = "AUTO"
-            inv["outcome"] = "SUCCESS"  # Set outcome so learn node can process it
+            # Simulate outcome based on revival probability for realistic learning
+            # High revival_prob → likely success, low → possible failure
+            import random
+            inv["outcome"] = "SUCCESS" if random.random() < inv["revival_prob"] else "FAILURE"
             ship["status"] = "RESCUED"
         else:
             inv["execution"] = "PENDING_HUMAN"

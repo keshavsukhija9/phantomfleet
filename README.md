@@ -12,30 +12,61 @@ An autonomous logistics intelligence system that implements a complete **Observe
 4. **Acts** - Executes interventions with 4-layer guardrails or escalates to humans
 5. **Learns** - Stores outcomes in vector memory to improve future decisions
 
-## 🚀 Quick Start (5 Minutes)
+## 🚀 Quick Start
 
+### Windows Users (Easiest)
+```bash
+# 1. Setup environment variables
+copy .env.example .env
+copy backend\.env.example backend\.env
+# Edit both .env files and add your Hugging Face token
+
+# 2. Start backend
+start_backend.bat
+
+# 3. Start frontend (new terminal)
+start_frontend.bat
+```
+Open http://localhost:5173 🎉
+
+### Manual Setup
+
+#### Option 1: Streamlit App (Simpler)
 ```bash
 # 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Set your API key in .env
-ANTHROPIC_API_KEY=sk-ant-your-key-here
+# 2. Set your Hugging Face token in .env
+HUGGINGFACEHUB_API_TOKEN=hf_your_token_here
 
 # 3. Train the model
-cd backend && python models/train.py && cd ..
+cd backend
+python models/train.py
+cd ..
 
-# 4. Test the system
-cd backend && python test_system.py && cd ..
-
-# 5. Run the app (PRD-compliant Streamlit version)
+# 4. Run the Streamlit app
 streamlit run app_streamlit.py
 ```
+Open http://localhost:8501 🎉
 
-Open browser to `http://localhost:8501` 🎉
+#### Option 2: React + FastAPI (Full Stack)
+```bash
+# Terminal 1 - Backend
+cd backend
+python models/train.py  # First time only
+uvicorn main:app --reload --port 8000
 
-**Alternative:** For the React + FastAPI version, see [GET_STARTED.md](GET_STARTED.md)
+# Terminal 2 - Frontend
+cd frontend
+npm install  # First time only
+npm run dev
+```
+Open http://localhost:5173 🎉
 
-**See [QUICKSTART.md](QUICKSTART.md) for detailed instructions.**
+**Important:** 
+- Backend commands must be run from `backend/` folder
+- Frontend commands must be run from `frontend/` folder
+- See [QUICK_START.md](QUICK_START.md) for detailed instructions
 
 ## API Endpoints
 

@@ -4,6 +4,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import asyncio
 import json
+import uuid
 from typing import Optional
 from dotenv import load_dotenv
 
@@ -83,11 +84,17 @@ async def run_tick():
     global _state
     async with _state_lock:
         try:
+            print(f"[TICK] Starting tick {_state.get('tick', 0) + 1}...")
             result = await asyncio.to_thread(APP.invoke, _state, _config)
             _state = result
+            print(f"[TICK] Completed tick {_state.get('tick', 0)}")
+            print(f"[TICK] Shipments: {len(_state.get('shipments', {}))}, At Risk: {len(_state.get('active_at_risk', []))}")
             return serialize_state(_state)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            print(f"[TICK ERROR] {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)}")
 
 
 @app.post("/approve/{intervention_id}")
@@ -134,6 +141,9 @@ async def stream_ticks():
     """Server-Sent Events stream for auto-run mode."""
     async def event_generator():
         global _state
+        # Use separate config for stream to avoid conflicts
+        stream_config = {"configurable": {"thread_id": f"stream_{uuid.uuid4().hex[:8]}"}}
+        
         try:
             while True:
                 # Deep copy state to avoid race conditions
@@ -142,7 +152,7 @@ async def stream_ticks():
                     current_state = copy.deepcopy(_state)
                 
                 # Run tick outside lock to avoid blocking other endpoints
-                result = await asyncio.to_thread(APP.invoke, current_state, _config)
+                result = await asyncio.to_thread(APP.invoke, current_state, stream_config)
                 
                 # Update global state with lock
                 async with _state_lock:
