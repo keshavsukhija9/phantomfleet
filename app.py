@@ -1,65 +1,66 @@
 import streamlit as st
-import requests
 import time
+from backend.agent.graph import APP
+from backend.agent.state import AgentState
 import plotly.graph_objects as go
-import pandas as pd
 
-# Configure page
-st.set_page_config(
-    page_title="Phantom Fleet",
-    layout="wide",
-    page_icon="🚀"
-)
+st.set_page_config(page_title="Phantom Fleet", layout="wide", page_icon="🚀")
 
-# Backend API URL
-API_BASE = "http://localhost:8000"
+# ── Init session state ───────────────────────────────────
+if "agent_state" not in st.session_state:
+    st.session_state.agent_state = {
+        "shipments": {},
+        "risk_map": {},
+        "interventions": {},
+        "pending_approvals": [],
+        "tick": 0,
+        "capacity_opportunities": [],
+        "episode_count": 0,
+        "calibration_boost": {},
+        "active_at_risk": [],
+        "causal_map": {},
+        "shap_map": {},
+        "stored_episodes": [],
+    }
+    st.session_state.config = {"configurable": {"thread_id": "demo"}}
+    st.session_state.rescued_count = 0
+    st.session_state.metrics_history = []
 
-# Initialize session state
-if "auto_run" not in st.session_state:
-    st.session_state.auto_run = False
-if "last_tick" not in st.session_state:
-    st.session_state.last_tick = 0
+# ── Header ───────────────────────────────────────────────
+st.title("Phantom Fleet — Autonomous Logistics Agent")
+state = st.session_state.agent_state
 
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Tick", state.get("tick", 0))
+col2.metric("At Risk", len(state.get("active_at_risk", [])))
 
-def get_state():
-    """Fetch current state from backend."""
-    try:
-        response = requests.get(f"{API_BASE}/state", timeout=5)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        st.error(f"Failed to fetch state: {e}")
-        return None
+# Calculate rescued count safely
+shipments = state.get("shipments", {})
+rescued_count = 0
+for s in shipments.values():
+    status = s.get("status") if isinstance(s, dict) else getattr(s, "status", None)
+    if status == "RESCUED":
+        rescued_count += 1
 
+col3.metric("Rescued", rescued_count)
+col4.metric("Episodes in Memory", state.get("episode_count", 0))
 
-def run_tick():
-    """Run one agent cycle."""
-    try:
-        response = requests.post(f"{API_BASE}/tick", timeout=30)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        st.error(f"Failed to run tick: {e}")
-        return None
+# ── Run one agent tick ───────────────────────────────────
+if st.button("Run Next Tick") or st.session_state.get("auto_run"):
+    result = APP.invoke(st.session_state.agent_state, st.session_state.config)
+    st.session_state.agent_state = result
 
+st.toggle("Auto-Run (every 5s)", key="auto_run")
+if st.session_state.get("auto_run"):
+    time.sleep(5)
+    st.rerun()
 
-def approve_intervention(intervention_id, decision):
-    """Approve or reject an intervention."""
-    try:
-        response = requests.post(
-            f"{API_BASE}/approve/{intervention_id}",
-            json={"decision": decision},
-            timeout=5
-        )
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        st.error(f"Failed to {decision} intervention: {e}")
-        return None
+# ── MAP PANEL ────────────────────────────────────────────
+col_map, col_risk = st.columns([2, 1])
 
-
-def build_map(state):
-    """Build Plotly map visualization."""
+with col_map:
+    st.subheader("Live Network Map")
+    
     # India-scale fake coordinates for 5 nodes
     NODES = {
         "W1": (19.0760, 72.8777),   # Mumbai
@@ -74,42 +75,39 @@ def build_map(state):
     # Draw node markers
     for name, (lat, lng) in NODES.items():
         fig.add_trace(go.Scattermapbox(
-            lat=[lat],
-            lon=[lng],
-            mode="markers+text",
+            lat=[lat], lon=[lng], mode="markers+text",
             marker=dict(size=18, color="steelblue"),
-            text=[name],
-            textposition="top right",
-            name=name,
-            showlegend=False
+            text=[name], textposition="top right",
+            name=name, showlegend=False
         ))
     
-    # Draw shipment dots
-    shipments = state.get("shipments", {})
+    # Draw shipment dots (shipments already defined above)
     for sid, ship in shipments.items():
-        if ship.get("failure_prob", 0) < 0.50:
+        # Handle both dict and dataclass
+        failure_prob = ship.get("failure_prob", 0) if isinstance(ship, dict) else ship.failure_prob
+        priority = ship.get("priority", "STANDARD") if isinstance(ship, dict) else ship.priority
+        
+        if failure_prob < 0.50:
             continue
-        
-        lat = NODES["W1"][0] + (hash(sid) % 100) / 500
-        lng = NODES["W1"][1] + (hash(sid) % 100) / 500
-        color = "red" if ship.get("failure_prob", 0) > 0.75 else "orange"
-        size = 16 if ship.get("priority") == "CRITICAL" else 10
-        
+        lat = NODES["W1"][0] + (hash(sid) % 100)/500
+        lng = NODES["W1"][1] + (hash(sid) % 100)/500
+        color = "red" if failure_prob > 0.75 else "orange"
+        size = 16 if priority == "CRITICAL" else 10
         fig.add_trace(go.Scattermapbox(
-            lat=[lat],
-            lon=[lng],
-            mode="markers",
+            lat=[lat], lon=[lng], mode="markers",
             marker=dict(size=size, color=color, opacity=0.8),
-            name=sid,
-            showlegend=False,
-            hovertext=f"{sid}: {ship.get('failure_prob', 0):.0%} risk"
+            name=sid, showlegend=False,
+            hovertext=f"{sid}: {failure_prob:.0%} risk"
         ))
     
     # Draw rescue paths for active interventions
     interventions = state.get("interventions", {})
     for iid, inv in interventions.items():
-        if inv.get("execution") in ["AUTO", "HUMAN_APPROVED"]:
-            path = inv.get("path", "")
+        # Handle both dict and dataclass
+        execution = inv.get("execution") if isinstance(inv, dict) else inv.execution
+        path = inv.get("path", "") if isinstance(inv, dict) else inv.path
+        
+        if execution in ["AUTO", "HUMAN_APPROVED"]:
             parts = path.split("→")
             if len(parts) >= 2:
                 src = parts[0].strip()
@@ -120,241 +118,123 @@ def build_map(state):
                         lon=[NODES[src][1], NODES[dst][1]],
                         mode="lines",
                         line=dict(width=3, color="limegreen"),
-                        name="Rescue Path",
-                        showlegend=False
+                        name="Rescue Path", showlegend=False
                     ))
     
     fig.update_layout(
-        mapbox=dict(
-            style="open-street-map",
-            center=dict(lat=20.5937, lon=78.9629),
-            zoom=4
-        ),
-        margin=dict(l=0, r=0, t=0, b=0),
-        height=400
+        mapbox=dict(style="open-street-map",
+                    center=dict(lat=20.5937, lon=78.9629), zoom=4),
+        margin=dict(l=0, r=0, t=0, b=0), height=400
     )
-    
-    return fig
-
-
-# ═══════════════════════════════════════════════════════════
-# HEADER
-# ═══════════════════════════════════════════════════════════
-
-st.title("🚀 Phantom Fleet — Autonomous Logistics Agent")
-
-# Fetch current state
-state = get_state()
-
-if state is None:
-    st.error("⚠️ Backend not responding. Make sure the FastAPI server is running:")
-    st.code("cd backend && uvicorn main:app --reload --port 8000")
-    st.stop()
-
-# Metrics row
-col1, col2, col3, col4 = st.columns(4)
-
-shipments = state.get("shipments", {})
-rescued_count = sum(1 for s in shipments.values() if s.get("status") == "RESCUED")
-
-col1.metric("Tick", state.get("tick", 0))
-col2.metric("At Risk", len(state.get("active_at_risk", [])))
-col3.metric("Rescued", rescued_count)
-col4.metric("Episodes in Memory", state.get("episode_count", 0))
-
-# Control buttons
-col_btn1, col_btn2 = st.columns([1, 3])
-
-with col_btn1:
-    if st.button("▶️ Run Next Tick", use_container_width=True):
-        with st.spinner("Running agent cycle..."):
-            new_state = run_tick()
-            if new_state:
-                st.session_state.last_tick = new_state.get("tick", 0)
-                st.rerun()
-
-with col_btn2:
-    auto_run = st.toggle("🔄 Auto-Run (every 5s)", value=st.session_state.auto_run)
-    st.session_state.auto_run = auto_run
-
-# Auto-run logic
-if st.session_state.auto_run:
-    time.sleep(5)
-    with st.spinner("Auto-running tick..."):
-        new_state = run_tick()
-        if new_state:
-            st.session_state.last_tick = new_state.get("tick", 0)
-    st.rerun()
-
-st.divider()
-
-# ═══════════════════════════════════════════════════════════
-# MAP AND RISK FEED
-# ═══════════════════════════════════════════════════════════
-
-col_map, col_risk = st.columns([2, 1])
-
-with col_map:
-    st.subheader("📍 Live Network Map")
-    fig = build_map(state)
     st.plotly_chart(fig, use_container_width=True)
 
 with col_risk:
-    st.subheader("⚠️ Risk Feed")
-    
-    # Get at-risk shipments
-    at_risk = [
-        (sid, ship) for sid, ship in shipments.items()
-        if ship.get("failure_prob", 0) >= 0.50
-    ]
-    at_risk.sort(key=lambda x: -x[1].get("failure_prob", 0))
-    
-    if at_risk:
-        for sid, ship in at_risk[:8]:
-            prob = ship.get("failure_prob", 0)
-            priority = ship.get("priority", "STANDARD")
-            
-            # ASCII progress bar
-            bar_len = int(prob * 10)
-            bar = "█" * bar_len + "░" * (10 - bar_len)
-            
-            # Priority badge
-            if priority == "CRITICAL":
-                badge = "🔴 CRITICAL"
-            elif priority == "HIGH":
-                badge = "🟠 HIGH"
-            else:
-                badge = "🟡 STANDARD"
-            
-            st.markdown(f"{badge} **{sid}**")
-            st.code(f"{bar} {prob:.0%}")
-    else:
-        st.success("✅ No shipments at risk")
+    st.subheader("Risk Feed")
+    at_risk = sorted(
+        [(sid, s) for sid, s in shipments.items()
+         if (s.get("failure_prob", 0) if isinstance(s, dict) else s.failure_prob) >= 0.50],
+        key=lambda x: -(x[1].get("failure_prob", 0) if isinstance(x[1], dict) else x[1].failure_prob)
+    )
+    for sid, ship in at_risk[:8]:
+        prob = ship.get("failure_prob", 0) if isinstance(ship, dict) else ship.failure_prob
+        priority = ship.get("priority", "STANDARD") if isinstance(ship, dict) else ship.priority
+        bar_len = int(prob * 10)
+        bar = "█" * bar_len + "░" * (10 - bar_len)
+        priority_color = {
+            "CRITICAL": "🔴 CRITICAL",
+            "HIGH": "🟠 HIGH",
+            "STANDARD": "🟡 STANDARD"
+        }
+        st.write(f"{priority_color[priority]} **{sid}** "
+                 f"`{bar}` {prob:.0%}")
 
-st.divider()
-
-# ═══════════════════════════════════════════════════════════
-# AGENT REASONING
-# ═══════════════════════════════════════════════════════════
-
-st.subheader("🧠 Agent Reasoning")
-
+# ── REASONING PANEL ──────────────────────────────────────
+st.subheader("Agent Reasoning")
 causal_map = state.get("causal_map", {})
-active_at_risk = state.get("active_at_risk", [])
-
-if causal_map and active_at_risk:
-    top_sid = active_at_risk[0]
-    
-    if top_sid in causal_map:
-        causal = causal_map[top_sid]
-        ship = shipments.get(top_sid, {})
-        
-        # Display causal reasoning
-        primary_cause = causal.get("primary_cause", "UNKNOWN")
-        confidence = causal.get("confidence", 0)
-        hypothesis = causal.get("hypothesis", "")
-        
-        st.info(f"**Shipment {top_sid}** | Cause: `{primary_cause}` | Confidence: {confidence:.0%}")
-        st.write(hypothesis)
-        
-        # Show SHAP drivers
-        shap_map = state.get("shap_map", {})
-        if top_sid in shap_map:
-            shap = shap_map[top_sid]
-            st.caption(f"**Top SHAP drivers:** {shap}")
+if causal_map:
+    active_at_risk = state.get("active_at_risk", [])
+    top_sid = active_at_risk[0] if active_at_risk else None
+    if top_sid and top_sid in causal_map:
+        c = causal_map[top_sid]
+        st.info(f"**Shipment {top_sid}** | Cause: `{c.get('primary_cause','?')}`"
+                f" | Confidence: {c.get('confidence',0):.0%}")
+        st.write(c.get("hypothesis",""))
+        shap = state.get("shap_map", {}).get(top_sid, {})
+        if shap:
+            st.caption("Top SHAP drivers: " + str(shap))
 else:
-    st.success("✅ No shipments at risk this tick")
+    st.success("No shipments at risk this tick.")
 
-st.divider()
-
-# ═══════════════════════════════════════════════════════════
-# ESCALATION CARDS (Human Approval)
-# ═══════════════════════════════════════════════════════════
-
+# ── ESCALATION CARDS ─────────────────────────────────────
 pending_approvals = state.get("pending_approvals", [])
-
 if pending_approvals:
-    st.subheader("🚨 Human Approval Required")
-    
-    interventions = state.get("interventions", {})
-    
-    for iid in pending_approvals:
+    st.subheader("Human Approval Required")
+    for iid in pending_approvals[:]:
         inv = interventions.get(iid)
         if not inv:
             continue
         
-        ship = shipments.get(inv.get("shipment_id", ""), {})
-        priority = ship.get("priority", "UNKNOWN")
-        score = inv.get("score", 0)
+        # Handle both dict and dataclass for intervention
+        shipment_id = inv.get("shipment_id") if isinstance(inv, dict) else inv.shipment_id
+        ship = shipments.get(shipment_id)
+        if not ship:
+            continue
         
-        with st.expander(
-            f"🔔 Shipment {inv.get('shipment_id')} | {priority} | Score: {score:.2f}",
-            expanded=True
-        ):
-            col_info1, col_info2 = st.columns(2)
-            
-            with col_info1:
-                st.write(f"**Proposed path:** {inv.get('path', 'N/A')}")
-                st.write(f"**ETA improvement:** +{inv.get('predicted_eta_gain', 0):.1f}h")
-            
-            with col_info2:
-                st.write(f"**Cost increase:** +{inv.get('cost_delta_pct', 0):.1f}%")
-                st.write(f"**Revival probability:** {inv.get('revival_prob', 0):.0%}")
-            
-            st.write(f"**Why:** {inv.get('causal_reason', 'No reason provided')}")
-            
-            col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
-            
-            with col_btn1:
-                if st.button("✅ Approve", key=f"approve_{iid}", use_container_width=True):
-                    new_state = approve_intervention(iid, "approve")
-                    if new_state:
-                        st.success("Approved!")
-                        time.sleep(1)
-                        st.rerun()
-            
-            with col_btn2:
-                if st.button("❌ Reject", key=f"reject_{iid}", use_container_width=True):
-                    new_state = approve_intervention(iid, "reject")
-                    if new_state:
-                        st.warning("Rejected")
-                        time.sleep(1)
-                        st.rerun()
-
-st.divider()
-
-# ═══════════════════════════════════════════════════════════
-# LEARNING PROGRESS
-# ═══════════════════════════════════════════════════════════
-
-with st.expander("📊 Learning Progress", expanded=False):
-    episode_count = state.get("episode_count", 0)
-    
-    if episode_count > 0:
-        st.write(f"Episodes stored in memory: **{episode_count}**")
+        # Extract values safely
+        priority = ship.get("priority") if isinstance(ship, dict) else ship.priority
+        score = inv.get("score", 0) if isinstance(inv, dict) else inv.score
+        path = inv.get("path", "") if isinstance(inv, dict) else inv.path
+        eta_gain = inv.get("predicted_eta_gain", 0) if isinstance(inv, dict) else inv.predicted_eta_gain
+        cost_delta = inv.get("cost_delta_pct", 0) if isinstance(inv, dict) else inv.cost_delta_pct
+        revival_prob = inv.get("revival_prob", 0) if isinstance(inv, dict) else inv.revival_prob
+        causal_reason = inv.get("causal_reason", "") if isinstance(inv, dict) else inv.causal_reason
         
-        calibration_boost = state.get("calibration_boost", {})
-        
-        if calibration_boost:
-            df = pd.DataFrame(
-                list(calibration_boost.items()),
-                columns=["Carrier", "Score Multiplier"]
-            )
-            
+        with st.expander(f"Shipment {shipment_id} "
+                         f"| {priority} | Score: {score:.2f}",
+                         expanded=True):
+            st.write(f"**Proposed path:** {path}")
+            st.write(f"**ETA improvement:** +{eta_gain:.1f}h")
+            st.write(f"**Cost increase:** +{cost_delta:.1f}%")
+            st.write(f"**Revival probability:** {revival_prob:.0%}")
+            st.write(f"**Why:** {causal_reason}")
+            c1, c2 = st.columns(2)
+            if c1.button(f"Approve", key=f"app_{iid}"):
+                # Set outcome so learn node processes on next tick
+                if isinstance(inv, dict):
+                    inv["execution"] = "HUMAN_APPROVED"
+                    inv["outcome"] = "SUCCESS"
+                else:
+                    inv.execution = "HUMAN_APPROVED"
+                    inv.outcome = "SUCCESS"
+                
+                if isinstance(ship, dict):
+                    ship["status"] = "RESCUED"
+                else:
+                    ship.status = "RESCUED"
+                
+                pending_approvals.remove(iid)
+                st.rerun()
+            if c2.button(f"Reject", key=f"rej_{iid}"):
+                # Set outcome so learn node processes on next tick
+                if isinstance(inv, dict):
+                    inv["execution"] = "REJECTED"
+                    inv["outcome"] = "FAILURE"
+                else:
+                    inv.execution = "REJECTED"
+                    inv.outcome = "FAILURE"
+                
+                pending_approvals.remove(iid)
+                st.rerun()
+
+# ── METRICS CHART ─────────────────────────────────────────
+with st.expander("Learning Progress"):
+    if state.get("episode_count", 0) > 0:
+        st.write(f"Episodes stored in memory: **{state['episode_count']}**")
+        boosts = state.get("calibration_boost", {})
+        if boosts:
+            import pandas as pd
+            df = pd.DataFrame(list(boosts.items()),
+                              columns=["Carrier","Score Multiplier"])
             st.bar_chart(df.set_index("Carrier"))
-            
-            st.caption(
-                "Score multiplier > 1.0 = memory boosting this carrier type. "
-                "< 1.0 = memory penalizing based on past failures."
-            )
-        else:
-            st.info("No calibration data yet. Run more ticks to see learning in action.")
-    else:
-        st.info("No episodes stored yet. Run a few ticks to see the learning loop in action.")
-
-# ═══════════════════════════════════════════════════════════
-# FOOTER
-# ═══════════════════════════════════════════════════════════
-
-st.divider()
-st.caption("Phantom Fleet v3 | NMIMS Hackathon | Agentic AI for Logistics & Supply Chain")
+            st.caption("Score multiplier > 1.0 = memory boosting this path type."
+                       " < 1.0 = memory penalizing based on past failures.")

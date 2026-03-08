@@ -1,5 +1,4 @@
 #!/bin/bash
-
 echo "=========================================="
 echo "PHANTOM FLEET - QUICK START"
 echo "=========================================="
@@ -7,69 +6,66 @@ echo ""
 
 # Check if .env exists
 if [ ! -f .env ]; then
-    echo "⚠️  .env file not found!"
+    echo "WARNING: .env file not found!"
     echo "Creating .env template..."
-    echo "ANTHROPIC_API_KEY=your_key_here" > .env
-    echo "❌ Please edit .env and add your Anthropic API key"
+    echo "HUGGINGFACEHUB_API_TOKEN=your_hf_token_here" > .env
+    echo "ERROR: Please edit .env and add your Hugging Face API token"
     exit 1
 fi
 
-# Check if API key is set
-if grep -q "your_key_here" .env; then
-    echo "❌ Please set your ANTHROPIC_API_KEY in .env file"
-    exit 1
-fi
-
-echo "✓ Environment configured"
+echo "Environment configured"
 echo ""
 
-# Install dependencies
-echo "[1/4] Installing Python dependencies..."
+# Install Python dependencies
+echo "[1/5] Installing Python dependencies..."
 cd backend
-pip install -q -r requirements.txt
-if [ $? -ne 0 ]; then
-    echo "❌ Failed to install dependencies"
-    exit 1
-fi
-echo "✓ Dependencies installed"
+pip install -q -r requirements.txt || { echo "ERROR: Failed to install dependencies"; exit 1; }
+echo "Dependencies installed"
 echo ""
 
 # Train model if not exists
 if [ ! -f models/model.pkl ]; then
-    echo "[2/4] Training XGBoost model (first time only, ~3 minutes)..."
-    python models/train.py
-    if [ $? -ne 0 ]; then
-        echo "❌ Model training failed"
-        exit 1
-    fi
+    echo "[2/5] Training XGBoost model (first time only, ~3 minutes)..."
+    python models/train.py || { echo "ERROR: Model training failed"; exit 1; }
 else
-    echo "[2/4] Model already trained ✓"
+    echo "[2/5] Model already trained"
 fi
 echo ""
 
 # Run tests
-echo "[3/4] Running system tests..."
-python test_system.py
-if [ $? -ne 0 ]; then
-    echo "❌ System tests failed"
-    exit 1
+echo "[3/5] Running system tests..."
+python test_system.py || { echo "ERROR: System tests failed"; exit 1; }
+echo ""
+
+# Install frontend dependencies
+echo "[4/5] Installing frontend dependencies..."
+cd ../frontend
+if [ ! -d node_modules ]; then
+    npm install || { echo "ERROR: Failed to install frontend dependencies"; exit 1; }
+else
+    echo "Frontend dependencies already installed"
 fi
 echo ""
 
-# Start server
-echo "[4/4] Starting FastAPI server..."
+# Start both servers
+echo "[5/5] Starting servers..."
 echo ""
 echo "=========================================="
-echo "Server starting at http://localhost:8000"
+echo "  Backend:  http://localhost:8000"
+echo "  Frontend: http://localhost:5173"
 echo "=========================================="
 echo ""
-echo "API Endpoints:"
-echo "  GET  /state          - Get current state"
-echo "  POST /tick           - Run one tick"
-echo "  POST /approve/{id}   - Approve intervention"
-echo "  GET  /stream         - SSE stream (auto-run)"
-echo ""
+echo "Open http://localhost:5173 in your browser"
 echo "Press Ctrl+C to stop"
 echo ""
 
+# Start frontend dev server in background
+npm run dev &
+FRONTEND_PID=$!
+
+# Start backend server (foreground)
+cd ../backend
 uvicorn main:app --reload --port 8000
+
+# Cleanup frontend when backend exits
+kill $FRONTEND_PID 2>/dev/null
