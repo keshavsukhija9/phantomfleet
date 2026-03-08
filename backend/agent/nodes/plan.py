@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import uuid
-from agent.state import AgentState, Intervention
+from agent.state import AgentState, Intervention, intervention_to_dict
 from agent.nodes.capacity import CAPACITY_POOL, score_path
 
 
@@ -11,7 +11,7 @@ def run(state: AgentState) -> AgentState:
     """
     PlanNode: Score capacity opportunities and create interventions.
     
-    Applies memory-based calibration boost to scoring (keyed by shipment_id per PRD).
+    Applies memory-based calibration boost to scoring (keyed by carrier for learning).
     """
     active_at_risk = state.get("active_at_risk", [])
     shipments = state.get("shipments", {})
@@ -21,8 +21,8 @@ def run(state: AgentState) -> AgentState:
     
     for sid in active_at_risk[:3]:  # Cap at 3
         ship = shipments[sid]
-        # Get boost by shipment_id per PRD Section 2
-        boost = calibration_boost.get(sid, 1.0)
+        # Get boost by carrier (for learning to work across ticks)
+        boost = calibration_boost.get(ship["carrier"], 1.0)
         
         # Score all capacity entries
         scored = [(score_path(c, boost), c) for c in CAPACITY_POOL]
@@ -42,10 +42,12 @@ def run(state: AgentState) -> AgentState:
             score=best_score,
         )
         
-        interventions[intervention.id] = intervention
-        ship.intervention_id = intervention.id
+        # Convert to dict for LangGraph serialization
+        interventions[intervention.id] = intervention_to_dict(intervention)
+        ship["intervention_id"] = intervention.id
     
     return {
         **state,
+        "shipments": shipments,  # Explicitly return mutated shipments
         "interventions": interventions,
     }

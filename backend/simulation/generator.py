@@ -60,17 +60,17 @@ class SimulationEngine:
             
             s = {
                 "id": f"S{i:03d}",
-                "carrier": carrier,
-                "warehouse": warehouse,
-                "priority": priority,
-                "eta_drift_pct": min(base_drift, 80),
-                "carrier_reliability": self.carrier_reliability[carrier],
-                "warehouse_pressure": self.warehouse_pressure[warehouse],
-                "weather_risk": self.weather_risk,
-                "handoff_margin_hours": max(0.2, self.rng.normal(3.0, 1.2)),
-                "downstream_critical": self.rng.choice([0, 1, 2, 3], p=[0.5, 0.3, 0.15, 0.05]),
-                "priority_score": {"CRITICAL": 1.0, "HIGH": 0.67, "STANDARD": 0.33}[priority],
-                "route_reliability": self.rng.beta(7, 2),
+                "carrier": str(carrier),
+                "warehouse": str(warehouse),
+                "priority": str(priority),
+                "eta_drift_pct": float(min(base_drift, 80)),
+                "carrier_reliability": float(self.carrier_reliability[carrier]),
+                "warehouse_pressure": float(self.warehouse_pressure[warehouse]),
+                "weather_risk": float(self.weather_risk),
+                "handoff_margin_hours": float(max(0.2, self.rng.normal(3.0, 1.2))),
+                "downstream_critical": int(self.rng.choice([0, 1, 2, 3], p=[0.5, 0.3, 0.15, 0.05])),
+                "priority_score": float({"CRITICAL": 1.0, "HIGH": 0.67, "STANDARD": 0.33}[priority]),
+                "route_reliability": float(self.rng.beta(7, 2)),
             }
             shipments.append(s)
         return shipments

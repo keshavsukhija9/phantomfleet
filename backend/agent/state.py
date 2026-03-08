@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, TypedDict
 
 
@@ -38,16 +38,37 @@ class Intervention:
 
 
 # TypedDict for LangGraph compatibility
+# Note: shipments and interventions are stored as dicts, not dataclass instances
 class AgentState(TypedDict, total=False):
-    shipments: Dict[str, Shipment]
+    shipments: Dict[str, dict]  # dict representation of Shipment
     risk_map: Dict[str, float]
-    interventions: Dict[str, Intervention]
+    interventions: Dict[str, dict]  # dict representation of Intervention
     pending_approvals: List[str]
     tick: int
     capacity_opportunities: List[dict]
     episode_count: int
-    calibration_boost: Dict[str, float]  # shipment_id → score multiplier from memory
+    calibration_boost: Dict[str, float]  # carrier → score multiplier from memory (enables learning)
     active_at_risk: List[str]
     causal_map: Dict[str, dict]
     shap_map: Dict[str, dict]
     stored_episodes: List[str]  # Changed from set to list for LangGraph serialization
+
+
+def shipment_to_dict(ship: Shipment) -> dict:
+    """Convert Shipment dataclass to dict for LangGraph serialization."""
+    return asdict(ship)
+
+
+def intervention_to_dict(inv: Intervention) -> dict:
+    """Convert Intervention dataclass to dict for LangGraph serialization."""
+    return asdict(inv)
+
+
+def dict_to_shipment(d: dict) -> Shipment:
+    """Convert dict to Shipment dataclass."""
+    return Shipment(**d)
+
+
+def dict_to_intervention(d: dict) -> Intervention:
+    """Convert dict to Intervention dataclass."""
+    return Intervention(**d)

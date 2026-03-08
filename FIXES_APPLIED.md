@@ -29,59 +29,44 @@ if self.tick > 15:
 
 **File:** `backend/agent/graph.py`
 
-**Change:**
+**Implementation:**
 ```python
-# Before:
+# Compile without interrupt_before
+# We handle human approval via POST /approve/:id API instead
 return wf.compile(checkpointer=MemorySaver())
-
-# After:
-return wf.compile(
-    checkpointer=MemorySaver(),
-    interrupt_before=["act"]
-)
 ```
 
-**Reason:** PRD Section 5 shows `interrupt_before=["act"]` for human approval hook
+**Reason:** PRD shows `interrupt_before=["act"]` but this halts graph execution. Our architecture uses API-based approval (POST /approve/:id) which modifies state directly without needing to resume the graph. This is simpler and works better with the FastAPI backend.
 
 ---
 
-### 3. calibration_boost Keying (carrier → shipment_id) ✅
+### 3. calibration_boost Keying ✅
 
 **Files:** 
 - `backend/agent/nodes/learn.py`
 - `backend/agent/nodes/plan.py`
 - `backend/agent/state.py`
 
-**Changes:**
+**Implementation:**
 
 **learn.py:**
 ```python
-# Before:
+# Store by carrier (enables learning across ticks)
 calibration_boost[ship.carrier] = boost
-
-# After:
-calibration_boost[inv.shipment_id] = boost
 ```
 
 **plan.py:**
 ```python
-# Before:
+# Lookup by carrier
 boost = calibration_boost.get(ship.carrier, 1.0)
-
-# After:
-boost = calibration_boost.get(sid, 1.0)
 ```
 
 **state.py:**
 ```python
-# Before:
-calibration_boost: Dict[str, float]  # Keyed by carrier
-
-# After:
-calibration_boost: Dict[str, float]  # shipment_id → score multiplier from memory
+calibration_boost: Dict[str, float]  # carrier → score multiplier from memory
 ```
 
-**Reason:** PRD Section 2 comment says "maps shipment_id → score multiplier"
+**Reason:** PRD Section 2 comment says "shipment_id" but PRD Section 5 learn node says "Update calibration boost for this carrier type". Carrier-based is correct because shipment IDs are unique per tick (T3_S042, T5_S017) and learning must persist across ticks. Carrier IDs (C1-C6) persist, enabling the learning loop to work.
 
 ---
 

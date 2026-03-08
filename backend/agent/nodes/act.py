@@ -20,34 +20,36 @@ def run(state: AgentState) -> AgentState:
     pending_approvals = list(state.get("pending_approvals", []))
     
     for iid, inv in interventions.items():
-        if inv.execution != "PENDING":
+        if inv["execution"] != "PENDING":
             continue
         
         # Check if shipment still exists
-        if inv.shipment_id not in shipments:
-            print(f"Warning: Shipment {inv.shipment_id} not found for intervention {iid}")
+        if inv["shipment_id"] not in shipments:
+            print(f"Warning: Shipment {inv['shipment_id']} not found for intervention {iid}")
             continue
             
-        ship = shipments[inv.shipment_id]
+        ship = shipments[inv["shipment_id"]]
         
         # Check all 4 guardrails
         guardrails = [
-            inv.score >= 0.70,
-            inv.cost_delta_pct <= 5.0,
-            ship.priority != "CRITICAL",
-            inv.revival_prob >= 0.65,
+            inv["score"] >= 0.70,
+            inv["cost_delta_pct"] <= 5.0,
+            ship["priority"] != "CRITICAL",
+            inv["revival_prob"] >= 0.65,
         ]
         
         if all(guardrails):
-            inv.execution = "AUTO"
-            inv.outcome = "SUCCESS"  # Set outcome so learn node can process it
-            ship.status = "RESCUED"
+            inv["execution"] = "AUTO"
+            inv["outcome"] = "SUCCESS"  # Set outcome so learn node can process it
+            ship["status"] = "RESCUED"
         else:
-            inv.execution = "PENDING_HUMAN"
+            inv["execution"] = "PENDING_HUMAN"
             if iid not in pending_approvals:
                 pending_approvals.append(iid)
     
     return {
         **state,
+        "shipments": shipments,  # Explicitly return mutated shipments
+        "interventions": interventions,  # Explicitly return mutated interventions
         "pending_approvals": pending_approvals,
     }

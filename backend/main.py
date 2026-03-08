@@ -49,39 +49,10 @@ class DecisionRequest(BaseModel):
 
 def serialize_state(state: AgentState) -> dict:
     """Convert AgentState to JSON-serializable dict."""
+    # State is already dict-based, just return it
     return {
-        "shipments": {
-            sid: {
-                "id": s.id,
-                "origin": s.origin,
-                "destination": s.destination,
-                "carrier": s.carrier,
-                "eta_drift_pct": s.eta_drift_pct,
-                "carrier_reliability": s.carrier_reliability,
-                "warehouse_pressure": s.warehouse_pressure,
-                "weather_risk": s.weather_risk,
-                "priority": s.priority,
-                "status": s.status,
-                "failure_prob": s.failure_prob,
-                "intervention_id": s.intervention_id,
-            }
-            for sid, s in state.get("shipments", {}).items()
-        },
-        "interventions": {
-            iid: {
-                "id": i.id,
-                "shipment_id": i.shipment_id,
-                "path": i.path,
-                "predicted_eta_gain": i.predicted_eta_gain,
-                "cost_delta_pct": i.cost_delta_pct,
-                "revival_prob": i.revival_prob,
-                "execution": i.execution,
-                "outcome": i.outcome,
-                "causal_reason": i.causal_reason,
-                "score": i.score,
-            }
-            for iid, i in state.get("interventions", {}).items()
-        },
+        "shipments": state.get("shipments", {}),
+        "interventions": state.get("interventions", {}),
         "risk_map": state.get("risk_map", {}),
         "pending_approvals": state.get("pending_approvals", []),
         "tick": state.get("tick", 0),
@@ -90,7 +61,7 @@ def serialize_state(state: AgentState) -> dict:
         "active_at_risk": state.get("active_at_risk", []),
         "causal_map": state.get("causal_map", {}),
         "shap_map": state.get("shap_map", {}),
-        "stored_episodes": state.get("stored_episodes", []),  # Already a list
+        "stored_episodes": state.get("stored_episodes", []),
     }
 
 
@@ -121,7 +92,10 @@ async def run_tick():
 
 @app.post("/approve/{intervention_id}")
 async def approve_intervention(intervention_id: str, request: DecisionRequest):
-    """Human approval/rejection of an intervention."""
+    """
+    Human approval/rejection of an intervention.
+    Sets execution and outcome so learn node can process on next tick.
+    """
     global _state
     
     async with _state_lock:
@@ -131,16 +105,16 @@ async def approve_intervention(intervention_id: str, request: DecisionRequest):
         
         inv = interventions[intervention_id]
         shipments = _state.get("shipments", {})
-        ship = shipments.get(inv.shipment_id)
+        ship = shipments.get(inv["shipment_id"])
         
         if request.decision == "approve":
-            inv.execution = "HUMAN_APPROVED"
-            inv.outcome = "SUCCESS"
+            inv["execution"] = "HUMAN_APPROVED"
+            inv["outcome"] = "SUCCESS"  # Learn node will process this
             if ship:
-                ship.status = "RESCUED"
+                ship["status"] = "RESCUED"
         elif request.decision == "reject":
-            inv.execution = "REJECTED"
-            inv.outcome = "FAILURE"
+            inv["execution"] = "REJECTED"
+            inv["outcome"] = "FAILURE"  # Learn node will process this
         else:
             raise HTTPException(status_code=400, detail="Invalid decision")
         
@@ -148,6 +122,9 @@ async def approve_intervention(intervention_id: str, request: DecisionRequest):
         pending = _state.get("pending_approvals", [])
         if intervention_id in pending:
             pending.remove(intervention_id)
+        
+        # Note: Learning happens on next tick when learn node runs
+        # The intervention stays in state with outcome set
         
         return serialize_state(_state)
 
@@ -159,14 +136,20 @@ async def stream_ticks():
         global _state
         try:
             while True:
-                # Run tick in thread pool to avoid blocking event loop
+                # Deep copy state to avoid race conditions
+                import copy
                 async with _state_lock:
-                    result = await asyncio.to_thread(APP.invoke, _state, _config)
+                    current_state = copy.deepcopy(_state)
+                
+                # Run tick outside lock to avoid blocking other endpoints
+                result = await asyncio.to_thread(APP.invoke, current_state, _config)
+                
+                # Update global state with lock
+                async with _state_lock:
                     _state = result
-                    
-                    # Send state as SSE
                     data = json.dumps(serialize_state(_state))
-                    yield f"data: {data}\n\n"
+                
+                yield f"data: {data}\n\n"
                 
                 # Wait 5 seconds before next tick
                 await asyncio.sleep(5)

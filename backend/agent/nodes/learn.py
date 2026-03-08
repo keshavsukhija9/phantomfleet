@@ -21,23 +21,23 @@ def run(state: AgentState) -> AgentState:
     
     for iid, inv in interventions.items():
         # Skip if pending or already stored
-        if inv.outcome == "PENDING" or iid in stored_episodes:
+        if inv["outcome"] == "PENDING" or iid in stored_episodes:
             continue
         
-        ship = shipments.get(inv.shipment_id)
+        ship = shipments.get(inv["shipment_id"])
         if not ship:
             continue
         
         # Store episode in Chroma
         episode = {
             "id": iid,
-            "shipment_id": inv.shipment_id,
-            "path": inv.path,
-            "revival_prob": inv.revival_prob,
-            "cost_delta": inv.cost_delta_pct,
-            "outcome": inv.outcome,
-            "score": inv.score,
-            "carrier": ship.carrier,
+            "shipment_id": inv["shipment_id"],
+            "path": inv["path"],
+            "revival_prob": inv["revival_prob"],
+            "cost_delta": inv["cost_delta_pct"],
+            "outcome": inv["outcome"],
+            "score": inv["score"],
+            "carrier": ship["carrier"],
         }
         
         try:
@@ -45,9 +45,9 @@ def run(state: AgentState) -> AgentState:
             episode_count += 1
             stored_episodes.append(iid)  # Mark as stored (list not set)
             
-            # Update calibration boost for this shipment (keyed by shipment_id per PRD Section 2)
-            boost = get_boost(ship.carrier, inv.outcome)
-            calibration_boost[inv.shipment_id] = boost
+            # Update calibration boost for this carrier (keyed by carrier for learning to work)
+            boost = get_boost(ship["carrier"], inv["outcome"])
+            calibration_boost[ship["carrier"]] = boost
         except Exception as e:
             print(f"Error storing episode {iid}: {e}")
     

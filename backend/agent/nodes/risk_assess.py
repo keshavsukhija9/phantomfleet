@@ -5,6 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from models.predict import predict
 from agent.state import AgentState
 
+
 THRESHOLD = 0.75
 
 
@@ -22,7 +23,7 @@ def run(state: AgentState) -> AgentState:
     # Build set of shipment IDs that already have interventions
     interventions = state.get("interventions", {})
     shipments_with_interventions = {
-        inv.shipment_id for inv in interventions.values()
+        inv["shipment_id"] for inv in interventions.values()
     }
     
     shipments = state.get("shipments", {})
@@ -38,30 +39,31 @@ def run(state: AgentState) -> AgentState:
                     active_at_risk.append(sid)
             continue
         
-        # Convert shipment to dict for prediction
+        # Ship is already a dict, use it directly for prediction
         ship_dict = {
-            "eta_drift_pct": ship.eta_drift_pct,
-            "carrier_reliability": ship.carrier_reliability,
-            "warehouse_pressure": ship.warehouse_pressure,
-            "weather_risk": ship.weather_risk,
-            "handoff_margin_hours": ship.handoff_margin_hours,
-            "downstream_critical": ship.downstream_critical,
-            "priority_score": ship.priority_score,
-            "route_reliability": ship.route_reliability,
+            "eta_drift_pct": ship["eta_drift_pct"],
+            "carrier_reliability": ship["carrier_reliability"],
+            "warehouse_pressure": ship["warehouse_pressure"],
+            "weather_risk": ship["weather_risk"],
+            "handoff_margin_hours": ship["handoff_margin_hours"],
+            "downstream_critical": ship["downstream_critical"],
+            "priority_score": ship["priority_score"],
+            "route_reliability": ship["route_reliability"],
         }
         
         prob, shap_top3 = predict(ship_dict)
-        ship.failure_prob = prob
+        ship["failure_prob"] = prob
         risk_map[sid] = prob
         shap_map[sid] = shap_top3
         
         # Flag as at-risk if above threshold and no existing intervention
         if prob >= THRESHOLD and sid not in shipments_with_interventions:
             active_at_risk.append(sid)
-            ship.status = "AT_RISK"
+            ship["status"] = "AT_RISK"
     
     return {
         **state,
+        "shipments": shipments,  # Explicitly return mutated shipments
         "risk_map": risk_map,
         "active_at_risk": active_at_risk,
         "shap_map": shap_map,

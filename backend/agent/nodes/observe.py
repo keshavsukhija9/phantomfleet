@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from simulation.generator import SimulationEngine
-from agent.state import AgentState, Shipment
+from agent.state import AgentState, Shipment, shipment_to_dict, dict_to_shipment
 
 # Global simulation engine instance
 _engine = SimulationEngine()
@@ -25,7 +25,7 @@ def run(state: AgentState) -> AgentState:
     # Build set of shipment IDs that have interventions (O(I))
     existing_shipments = state.get("shipments", {})
     interventions = state.get("interventions", {})
-    shipments_with_interventions = {inv.shipment_id for inv in interventions.values()}
+    shipments_with_interventions = {inv["shipment_id"] for inv in interventions.values()}
     
     # Keep shipments that have active interventions (O(S))
     shipments = {
@@ -38,7 +38,7 @@ def run(state: AgentState) -> AgentState:
         # Create unique ID per tick
         unique_id = f"T{current_tick}_{s['id']}"
         
-        shipments[unique_id] = Shipment(
+        ship = Shipment(
             id=unique_id,
             origin="O1",
             destination="D1",
@@ -55,6 +55,9 @@ def run(state: AgentState) -> AgentState:
             priority_score=s["priority_score"],
             route_reliability=s["route_reliability"],
         )
+        
+        # Convert to dict for LangGraph serialization
+        shipments[unique_id] = shipment_to_dict(ship)
     
     return {
         **state,

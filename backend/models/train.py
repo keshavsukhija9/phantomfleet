@@ -48,8 +48,13 @@ def train_model():
 
     print("Training XGBoost model with GPU acceleration...")
     # GPU-optimized configuration for RTX 3050 with fallback
-    import torch
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # Try CUDA, fall back to CPU if unavailable
+    try:
+        import xgboost
+        # Check if XGBoost was built with CUDA support
+        device = "cuda" if "USE_CUDA" in xgboost.build_info() and xgboost.build_info()["USE_CUDA"] == "ON" else "cpu"
+    except:
+        device = "cpu"
     print(f"Using device: {device}")
     
     model = XGBClassifier(
@@ -58,8 +63,7 @@ def train_model():
         learning_rate=0.1,
         tree_method="hist",  # GPU-accelerated histogram method
         device=device,  # Use GPU if available, else CPU
-        eval_metric="logloss",
-        use_label_encoder=False
+        eval_metric="logloss"
     )
     
     model.fit(X_train, y_train)

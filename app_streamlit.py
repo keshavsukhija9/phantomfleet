@@ -33,8 +33,16 @@ state = st.session_state.agent_state
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Tick", state.get("tick", 0))
 col2.metric("At Risk", len(state.get("active_at_risk", [])))
-col3.metric("Rescued", sum(1 for s in state.get("shipments", {}).values()
-                            if s.status == "RESCUED"))
+
+# Calculate rescued count safely
+shipments = state.get("shipments", {})
+rescued_count = 0
+for s in shipments.values():
+    status = s.get("status") if isinstance(s, dict) else getattr(s, "status", None)
+    if status == "RESCUED":
+        rescued_count += 1
+
+col3.metric("Rescued", rescued_count)
 col4.metric("Episodes in Memory", state.get("episode_count", 0))
 
 # ── Run one agent tick ───────────────────────────────────
@@ -73,27 +81,34 @@ with col_map:
             name=name, showlegend=False
         ))
     
-    # Draw shipment dots
-    shipments = state.get("shipments", {})
+    # Draw shipment dots (shipments already defined above)
     for sid, ship in shipments.items():
-        if ship.failure_prob < 0.50:
+        # Handle both dict and dataclass
+        failure_prob = ship.get("failure_prob", 0) if isinstance(ship, dict) else ship.failure_prob
+        priority = ship.get("priority", "STANDARD") if isinstance(ship, dict) else ship.priority
+        
+        if failure_prob < 0.50:
             continue
         lat = NODES["W1"][0] + (hash(sid) % 100)/500
         lng = NODES["W1"][1] + (hash(sid) % 100)/500
-        color = "red" if ship.failure_prob > 0.75 else "orange"
-        size = 16 if ship.priority == "CRITICAL" else 10
+        color = "red" if failure_prob > 0.75 else "orange"
+        size = 16 if priority == "CRITICAL" else 10
         fig.add_trace(go.Scattermapbox(
             lat=[lat], lon=[lng], mode="markers",
             marker=dict(size=size, color=color, opacity=0.8),
             name=sid, showlegend=False,
-            hovertext=f"{sid}: {ship.failure_prob:.0%} risk"
+            hovertext=f"{sid}: {failure_prob:.0%} risk"
         ))
     
     # Draw rescue paths for active interventions
     interventions = state.get("interventions", {})
     for iid, inv in interventions.items():
-        if inv.execution in ["AUTO", "HUMAN_APPROVED"]:
-            parts = inv.path.split("→")
+        # Handle both dict and dataclass
+        execution = inv.get("execution") if isinstance(inv, dict) else inv.execution
+        path = inv.get("path", "") if isinstance(inv, dict) else inv.path
+        
+        if execution in ["AUTO", "HUMAN_APPROVED"]:
+            parts = path.split("→")
             if len(parts) >= 2:
                 src = parts[0].strip()
                 dst = parts[-1].strip()
@@ -117,19 +132,21 @@ with col_risk:
     st.subheader("Risk Feed")
     at_risk = sorted(
         [(sid, s) for sid, s in shipments.items()
-         if s.failure_prob >= 0.50],
-        key=lambda x: -x[1].failure_prob
+         if (s.get("failure_prob", 0) if isinstance(s, dict) else s.failure_prob) >= 0.50],
+        key=lambda x: -(x[1].get("failure_prob", 0) if isinstance(x[1], dict) else x[1].failure_prob)
     )
     for sid, ship in at_risk[:8]:
-        bar_len = int(ship.failure_prob * 10)
+        prob = ship.get("failure_prob", 0) if isinstance(ship, dict) else ship.failure_prob
+        priority = ship.get("priority", "STANDARD") if isinstance(ship, dict) else ship.priority
+        bar_len = int(prob * 10)
         bar = "█" * bar_len + "░" * (10 - bar_len)
         priority_color = {
             "CRITICAL": "🔴 CRITICAL",
             "HIGH": "🟠 HIGH",
             "STANDARD": "🟡 STANDARD"
         }
-        st.write(f"{priority_color[ship.priority]} **{sid}** "
-                 f"`{bar}` {ship.failure_prob:.0%}")
+        st.write(f"{priority_color[priority]} **{sid}** "
+                 f"`{bar}` {prob:.0%}")
 
 # ── REASONING PANEL ──────────────────────────────────────
 st.subheader("Agent Reasoning")
@@ -156,25 +173,56 @@ if pending_approvals:
         inv = interventions.get(iid)
         if not inv:
             continue
-        ship = shipments.get(inv.shipment_id)
-        with st.expander(f"Shipment {inv.shipment_id} "
-                         f"| {ship.priority} | Score: {inv.score:.2f}",
+        
+        # Handle both dict and dataclass for intervention
+        shipment_id = inv.get("shipment_id") if isinstance(inv, dict) else inv.shipment_id
+        ship = shipments.get(shipment_id)
+        if not ship:
+            continue
+        
+        # Extract values safely
+        priority = ship.get("priority") if isinstance(ship, dict) else ship.priority
+        score = inv.get("score", 0) if isinstance(inv, dict) else inv.score
+        path = inv.get("path", "") if isinstance(inv, dict) else inv.path
+        eta_gain = inv.get("predicted_eta_gain", 0) if isinstance(inv, dict) else inv.predicted_eta_gain
+        cost_delta = inv.get("cost_delta_pct", 0) if isinstance(inv, dict) else inv.cost_delta_pct
+        revival_prob = inv.get("revival_prob", 0) if isinstance(inv, dict) else inv.revival_prob
+        causal_reason = inv.get("causal_reason", "") if isinstance(inv, dict) else inv.causal_reason
+        
+        with st.expander(f"Shipment {shipment_id} "
+                         f"| {priority} | Score: {score:.2f}",
                          expanded=True):
-            st.write(f"**Proposed path:** {inv.path}")
-            st.write(f"**ETA improvement:** +{inv.predicted_eta_gain:.1f}h")
-            st.write(f"**Cost increase:** +{inv.cost_delta_pct:.1f}%")
-            st.write(f"**Revival probability:** {inv.revival_prob:.0%}")
-            st.write(f"**Why:** {inv.causal_reason}")
+            st.write(f"**Proposed path:** {path}")
+            st.write(f"**ETA improvement:** +{eta_gain:.1f}h")
+            st.write(f"**Cost increase:** +{cost_delta:.1f}%")
+            st.write(f"**Revival probability:** {revival_prob:.0%}")
+            st.write(f"**Why:** {causal_reason}")
             c1, c2 = st.columns(2)
             if c1.button(f"Approve", key=f"app_{iid}"):
-                inv.execution = "HUMAN_APPROVED"
-                inv.outcome = "SUCCESS"
-                ship.status = "RESCUED"
+                # Set outcome so learn node processes on next tick
+                if isinstance(inv, dict):
+                    inv["execution"] = "HUMAN_APPROVED"
+                    inv["outcome"] = "SUCCESS"
+                else:
+                    inv.execution = "HUMAN_APPROVED"
+                    inv.outcome = "SUCCESS"
+                
+                if isinstance(ship, dict):
+                    ship["status"] = "RESCUED"
+                else:
+                    ship.status = "RESCUED"
+                
                 pending_approvals.remove(iid)
                 st.rerun()
             if c2.button(f"Reject", key=f"rej_{iid}"):
-                inv.execution = "REJECTED"
-                inv.outcome = "FAILURE"
+                # Set outcome so learn node processes on next tick
+                if isinstance(inv, dict):
+                    inv["execution"] = "REJECTED"
+                    inv["outcome"] = "FAILURE"
+                else:
+                    inv.execution = "REJECTED"
+                    inv.outcome = "FAILURE"
+                
                 pending_approvals.remove(iid)
                 st.rerun()
 
@@ -186,7 +234,7 @@ with st.expander("Learning Progress"):
         if boosts:
             import pandas as pd
             df = pd.DataFrame(list(boosts.items()),
-                              columns=["Shipment","Score Multiplier"])
-            st.bar_chart(df.set_index("Shipment"))
+                              columns=["Carrier","Score Multiplier"])
+            st.bar_chart(df.set_index("Carrier"))
             st.caption("Score multiplier > 1.0 = memory boosting this path type."
                        " < 1.0 = memory penalizing based on past failures.")

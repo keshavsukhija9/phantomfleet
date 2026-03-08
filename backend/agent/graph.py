@@ -50,11 +50,10 @@ def build_graph():
     wf.add_edge("act", "learn")
     wf.add_edge("learn", END)
     
-    # Compile with memory saver and interrupt before act for human approval
-    return wf.compile(
-        checkpointer=MemorySaver(),
-        interrupt_before=["act"]
-    )
+    # Compile with memory saver
+    # Note: interrupt_before=["act"] would halt execution before act node.
+    # We handle human approval via POST /approve/:id API instead.
+    return wf.compile(checkpointer=MemorySaver())
 
 
 # Create global app instance

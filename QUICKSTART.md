@@ -6,7 +6,7 @@ Complete setup in 5 minutes!
 
 - Python 3.10+
 - CUDA toolkit (optional, for GPU acceleration)
-- Anthropic API key
+- Hugging Face API token (free)
 
 ## Step 1: Install Dependencies
 
@@ -16,9 +16,11 @@ pip install -r requirements.txt
 
 ## Step 2: Set API Key
 
+Get your free Hugging Face token at https://huggingface.co/settings/tokens
+
 Edit `.env` file:
 ```bash
-ANTHROPIC_API_KEY=sk-ant-your-actual-key-here
+HUGGINGFACEHUB_API_TOKEN=hf_your_token_here
 ```
 
 ## Step 3: Train the Model
